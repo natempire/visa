@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build output
+/build/
+
+# Secrets
+.env
+
+# Client data / database / backups - not version controlled
+server/data/
+
+# Logs
+*.log
+
+# Local (per-machine) Claude Code settings
+.claude/settings.local.json
+
+# Large redistributable binary (redownload from ngrok.com if needed)
+ngrok.exe
+
+# OS
+Thumbs.db
+Desktop.ini
