@@ -16,7 +16,9 @@
     "express-validator": "^7.0.1",
     "fs-extra": "^11.2.0",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.8.0",
     "multer": "^2.1.1",
-    "sql.js": "^1.10.3"
+    "sql.js": "^1.10.3",
+    "xlsx": "^0.18.5"
   }
 }

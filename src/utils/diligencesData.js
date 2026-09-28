@@ -1,5 +1,5 @@
 // Documents officiels à obtenir (étape 3)
-export const DOCUMENTS_REQUIS = [
+const DOCUMENTS_REQUIS = [
   { id: 'doc_1', nom: 'Copie du Registre de Commerce et de crédit mobilier (RCCM)' },
   { id: 'doc_2', nom: 'Copie de la Déclaration Fiscale d\'Existence (DFE)' },
   { id: 'doc_3', nom: 'Copie de la notification d\'immatriculation Employeur CNPS' },
@@ -16,7 +16,7 @@ export const DOCUMENTS_REQUIS = [
 ];
 
 // Cycles de diligences avec leurs points de contrôle
-export const CYCLES_DILIGENCES = [
+const CYCLES_DILIGENCES = [
   {
     id: 'organisation_comptable',
     label: 'Organisation comptable',
@@ -27,8 +27,8 @@ export const CYCLES_DILIGENCES = [
       { id: 'oc_3', texte: 'Les pièces comptables sont-elles archivées selon des règles prédéfinies ?' },
       { id: 'oc_4', texte: 'Existe-t-il des règles pour la collecte et la transmission des pièces comptables ?' },
       { id: 'oc_5', texte: 'La comptabilité est-elle établie à partir d\'un logiciel ?' },
-      { id: 'oc_6', texte: 'Les états financiers concordent-ils avec la balance générale ? (Capitaux propres, Chiffre d\'affaires, Résultat net)' },
-      { id: 'oc_7', texte: 'Les soldes d\'ouverture de N correspondent-ils aux soldes de clôture de N-1 ?' },
+      { id: 'oc_6', texte: 'Les états financiers concordent-ils avec la balance générale ? (Capitaux propres, Chiffre d\'affaires, Résultat net)', automatisation: { type: 'ia' } },
+      { id: 'oc_7', texte: 'Les soldes d\'ouverture de N correspondent-ils aux soldes de clôture de N-1 ?', automatisation: { type: 'numeric', check: 'soldesOuvertureCloture' } },
     ]
   },
   {
@@ -36,10 +36,10 @@ export const CYCLES_DILIGENCES = [
     label: "Pages d'informations (garde, p.5, 6, 7)",
     roleDefaut: 'assistant',
     points: [
-      { id: 'pi_1', texte: 'Vérifier que la page de garde (Page 1) contient : année d\'exercice, nom et raison sociale, NCC exact et régime fiscal, SAI de rattachement, numéro de téléphone actualisé.' },
-      { id: 'pi_2', texte: 'Vérifier sur la fiche d\'identification (Page 5) : N° RCCM et CNPS, désignation précise de l\'activité principale, domiciliations bancaires, nom et qualité du signataire.' },
-      { id: 'pi_3', texte: 'S\'assurer que la fiche des dirigeants (Page 7) est correctement renseignée (identité, fonctions, cohérence avec statuts ou PV).' },
-      { id: 'pi_4', texte: 'Vérifier à la page 6 : forme juridique, répartition du CA par activité, date de début d\'activité, cohérence avec états financiers.' },
+      { id: 'pi_1', texte: 'Vérifier que la page de garde (Page 1) contient : année d\'exercice, nom et raison sociale, NCC exact et régime fiscal, SAI de rattachement, numéro de téléphone actualisé.', automatisation: { type: 'ia' } },
+      { id: 'pi_2', texte: 'Vérifier sur la fiche d\'identification (Page 5) : N° RCCM et CNPS, désignation précise de l\'activité principale, domiciliations bancaires, nom et qualité du signataire.', automatisation: { type: 'ia' } },
+      { id: 'pi_3', texte: 'S\'assurer que la fiche des dirigeants (Page 7) est correctement renseignée (identité, fonctions, cohérence avec statuts ou PV).', automatisation: { type: 'ia' } },
+      { id: 'pi_4', texte: 'Vérifier à la page 6 : forme juridique, répartition du CA par activité, date de début d\'activité, cohérence avec états financiers.', automatisation: { type: 'ia' } },
     ]
   },
   {
@@ -189,3 +189,5 @@ export const CYCLES_DILIGENCES = [
     ]
   },
 ];
+
+module.exports = { DOCUMENTS_REQUIS, CYCLES_DILIGENCES };

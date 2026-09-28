@@ -27,6 +27,7 @@ app.use('/api/fichiers', fichiersRouter);
 app.locals.creerStructureDossier = creerStructureDossier;
 
 app.use('/api/ia', require('./routes/ia'));
+app.use('/api/diligences-auto', require('./routes/diligencesAuto'));
 
 // Health check
 app.get('/api/ping', (req, res) => res.json({ ok: true, version: '1.0.0' }));

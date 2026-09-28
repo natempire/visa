@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPlus, Check, ChevronDown, ChevronRight, User, Download, BookOpen } from 'lucide-react';
+import { UserPlus, Check, ChevronDown, ChevronRight, User, Download, BookOpen, Sparkles, Loader, RotateCcw } from 'lucide-react';
 import { useApp, ROLES_NIVEAU } from '../context/AppContext';
 import { CYCLES_DILIGENCES } from '../utils/diligencesData';
 import { TRAVAUX_PAR_POINT } from '../utils/travauxData';
@@ -16,10 +16,12 @@ const REPONSES = {
 };
 
 export default function DiligencesModule({ dossier }) {
-  const { utilisateurConnecte, utilisateurs, assignerCycle, mettreAJourReponse, signerCycleFait, signerCycleSupervise, ajouterHistorique, ROLES } = useApp();
+  const { utilisateurConnecte, utilisateurs, assignerCycle, mettreAJourReponse, signerCycleFait, signerCycleSupervise, annulerSupervisionCycle, analyserCycle, accepterPropositionIA, ajouterHistorique, ROLES } = useApp();
   const [cycleOuvert, setCycleOuvert] = useState(null);
   const [showAssign, setShowAssign] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [cycleEnAnalyse, setCycleEnAnalyse] = useState(null);
+  const [erreurAnalyse, setErreurAnalyse] = useState('');
 
   const isChefMission = ROLES_NIVEAU[utilisateurConnecte.role] >= 2;
   const cyclesAssignations = dossier.cyclesAssignations || {};
@@ -54,6 +56,18 @@ export default function DiligencesModule({ dossier }) {
     ajouterHistorique(dossier.id, 'Rapport de diligences exporté (Excel)');
   };
 
+  const handleAnalyser = async (cycleId) => {
+    setErreurAnalyse('');
+    setCycleEnAnalyse(cycleId);
+    try {
+      await analyserCycle(dossier.id, cycleId);
+    } catch (err) {
+      setErreurAnalyse(err.message || "Erreur lors de l'analyse automatique");
+    } finally {
+      setCycleEnAnalyse(null);
+    }
+  };
+
   return (
     <div>
       {/* Stats + export */}
@@ -74,6 +88,10 @@ export default function DiligencesModule({ dossier }) {
         </div>
       )}
 
+      {erreurAnalyse && (
+        <div style={{ padding: '10px 14px', background: '#fee2e2', color: '#ef4444', borderRadius: 8, marginBottom: 14, fontSize: 12.5 }}>{erreurAnalyse}</div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {CYCLES_DILIGENCES.map(cycle => {
           const prog = progressionCycle(cycle.id);
@@ -86,6 +104,8 @@ export default function DiligencesModule({ dossier }) {
           const estSupervise = !!cycleData.supervise;
           const faitParUser = utilisateurs.find(u => u.id === cycleData.faitPar);
           const superviseParUser = utilisateurs.find(u => u.id === cycleData.supervise);
+          const estAutomatisable = cycle.points.some(p => p.automatisation);
+          const enAnalyse = cycleEnAnalyse === cycle.id;
 
           return (
             <div key={cycle.id} style={{ border: `1.5px solid ${estSupervise ? '#10b98140' : estComplete ? '#c9a84c40' : 'var(--gray-200)'}`, borderRadius: 10, background: estSupervise ? '#f0fdf4' : 'white', overflow: 'hidden' }}>
@@ -108,6 +128,14 @@ export default function DiligencesModule({ dossier }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+                  {estAutomatisable && peutTravailler && !estSupervise && (
+                    <button className="btn btn-outline btn-sm" disabled={enAnalyse} title="Analyse automatique des points marqués IA à partir des documents du cycle"
+                      style={{ fontSize: 11, padding: '4px 10px', color: 'var(--gold)', borderColor: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 6 }}
+                      onClick={() => handleAnalyser(cycle.id)}>
+                      {enAnalyse ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={11} />}
+                      {enAnalyse ? 'Analyse…' : 'Analyser'}
+                    </button>
+                  )}
                   {isChefMission && (
                     <div style={{ position: 'relative' }}>
                       <button className="btn btn-outline btn-sm" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setShowAssign(showAssign === cycle.id ? null : cycle.id)}>
@@ -147,7 +175,8 @@ export default function DiligencesModule({ dossier }) {
                           return (
                             <PointDiligence key={point.id} point={point} reponse={rep} docsDisponibles={docsDisponibles}
                               peutModifier={peutTravailler && !estSupervise}
-                              onChange={(data) => mettreAJourReponse(dossier.id, cycle.id, point.id, data)} />
+                              onChange={(data) => mettreAJourReponse(dossier.id, cycle.id, point.id, data)}
+                              onAccepterProposition={() => accepterPropositionIA(dossier.id, cycle.id, point.id)} />
                           );
                         })}
                       </div>
@@ -157,7 +186,9 @@ export default function DiligencesModule({ dossier }) {
                           onSigner={() => signerCycleFait(dossier.id, cycle.id, utilisateurConnecte.id)} />
                         <SignatureBox label="Supervisé par" user={superviseParUser} date={cycleData.dateSupervise}
                           peutSigner={!cycleData.supervise && isChefMission && !!cycleData.faitPar}
-                          onSigner={() => signerCycleSupervise(dossier.id, cycle.id, utilisateurConnecte.id)} isSuperviseur />
+                          onSigner={() => signerCycleSupervise(dossier.id, cycle.id, utilisateurConnecte.id)}
+                          peutAnnuler={!!cycleData.supervise && isChefMission}
+                          onAnnuler={() => annulerSupervisionCycle(dossier.id, cycle.id)} isSuperviseur />
                       </div>
                       {/* Documents du cycle */}
                       <div style={{ borderTop: '1px solid var(--gray-100)', paddingTop: 12, marginTop: 4 }}>
@@ -176,11 +207,12 @@ export default function DiligencesModule({ dossier }) {
   );
 }
 
-function PointDiligence({ point, reponse, docsDisponibles, peutModifier, onChange }) {
+function PointDiligence({ point, reponse, docsDisponibles, peutModifier, onChange, onAccepterProposition }) {
   const [showDetail, setShowDetail] = useState(false);
   const [showTravaux, setShowTravaux] = useState(false);
   const statut = reponse.statut;
   const travaux = TRAVAUX_PAR_POINT[point.id];
+  const proposition = reponse.propositionIA;
 
   return (
     <div style={{ border: `1.5px solid ${statut === 'oui' ? '#10b98130' : statut === 'non' ? '#ef444430' : statut === 'na' ? '#94a3b830' : 'var(--gray-200)'}`, borderRadius: 8, background: statut === 'oui' ? '#f0fdf4' : statut === 'non' ? '#fff8f8' : statut === 'na' ? '#f8fafc' : 'white', overflow: 'hidden' }}>
@@ -212,6 +244,24 @@ function PointDiligence({ point, reponse, docsDisponibles, peutModifier, onChang
           </button>
         </div>
       </div>
+
+      {/* Proposition IA */}
+      {proposition && (
+        <div style={{ borderTop: '1px solid #fde68a', padding: '10px 12px', background: '#fffbeb', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <Sparkles size={13} color="var(--gold)" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: '#92400e', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
+              Proposition IA — à vérifier{proposition.statut ? ` : ${REPONSES[proposition.statut]?.label || proposition.statut}` : ''}
+            </div>
+            <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.5 }}>{proposition.justification}</div>
+          </div>
+          {peutModifier && proposition.statut && (
+            <button className="btn btn-outline btn-sm" style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0 }} onClick={onAccepterProposition}>
+              <Check size={11} /> Accepter
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Travaux à réaliser */}
       {showTravaux && travaux && (
@@ -246,10 +296,20 @@ function PointDiligence({ point, reponse, docsDisponibles, peutModifier, onChang
   );
 }
 
-function SignatureBox({ label, user, date, peutSigner, onSigner, isSuperviseur }) {
+function SignatureBox({ label, user, date, peutSigner, onSigner, peutAnnuler, onAnnuler, isSuperviseur }) {
+  const handleAnnuler = () => {
+    if (window.confirm(`Annuler la supervision de ce cycle ? Les réponses resteront enregistrées mais le cycle redeviendra modifiable.`)) onAnnuler();
+  };
   return (
     <div style={{ padding: '10px 12px', border: `1.5px solid ${user ? (isSuperviseur ? '#10b98140' : 'var(--navy-pale)') : 'var(--gray-200)'}`, borderRadius: 8, background: user ? (isSuperviseur ? '#f0fdf4' : 'var(--navy-pale)') : 'white' }}>
-      <div style={{ fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+        {peutAnnuler && (
+          <button onClick={handleAnnuler} title="Annuler la supervision" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2, display: 'flex', alignItems: 'center' }}>
+            <RotateCcw size={12} />
+          </button>
+        )}
+      </div>
       {user ? (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

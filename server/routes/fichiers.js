@@ -234,4 +234,4 @@ router.post('/:dossierId/:contexte(*)', authentifier, upload.single('fichier'), 
   }
 });
 
-module.exports = { router, creerStructureDossier };
+module.exports = { router, creerStructureDossier, resolveDir, listFiles, nomDossierServeur };

@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
-import { Plus, FolderOpen, Search, Calendar, Hash, Copy, X } from 'lucide-react';
+import { Plus, FolderOpen, Search, Calendar, Hash, Copy, X, Trash2 } from 'lucide-react';
 import { useApp, ROLES_NIVEAU } from '../context/AppContext';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import ModalNouveauDossier from '../components/ModalNouveauDossier';
 
 export default function DossiersPage({ setPage, setDossierActif }) {
-  const { dossiers, utilisateurConnecte, creerDossier, dupliquerDossier, ETAPES } = useApp();
+  const { dossiers, utilisateurConnecte, creerDossier, dupliquerDossier, supprimerDossier, ETAPES } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [recherche, setRecherche] = useState('');
   const [filtre, setFiltre] = useState('tous');
   const [dossierADupliquer, setDossierADupliquer] = useState(null);
   const [nouvelExercice, setNouvelExercice] = useState('');
   const [duplicationLoading, setDuplicationLoading] = useState(false);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(null);
+
+  const isAdmin = utilisateurConnecte?.role === 'admin';
 
   const isExpert = ROLES_NIVEAU[utilisateurConnecte?.role] >= ROLES_NIVEAU.expert;
   const mesDossiers = isExpert
@@ -65,6 +68,20 @@ export default function DossiersPage({ setPage, setDossierActif }) {
       console.error(err);
     } finally {
       setDuplicationLoading(false);
+    }
+  };
+
+  const handleSupprimer = async (dossier, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Supprimer définitivement le dossier "${dossier.nomEntite}" (${dossier.exercice}) ? Toutes ses données et tous ses documents seront perdus. Cette action est irréversible.`)) return;
+    setSuppressionEnCours(dossier.id);
+    try {
+      await supprimerDossier(dossier.id);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setSuppressionEnCours(null);
     }
   };
 
@@ -150,6 +167,18 @@ export default function DossiersPage({ setPage, setDossierActif }) {
                           onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
                         >
                           <Copy size={11} /> Dupliquer
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <button
+                          onClick={e => handleSupprimer(dossier, e)}
+                          disabled={suppressionEnCours === dossier.id}
+                          title="Supprimer définitivement"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                        >
+                          <Trash2 size={11} /> {suppressionEnCours === dossier.id ? 'Suppression…' : 'Supprimer'}
                         </button>
                       )}
                     </div>

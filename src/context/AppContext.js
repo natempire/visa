@@ -135,6 +135,11 @@ export function AppProvider({ children }) {
     }
   };
 
+  const supprimerDossier = async (dossierId) => {
+    await api.supprimerDossier(dossierId);
+    setDossiers(prev => prev.filter(d => d.id !== dossierId));
+  };
+
   const ajouterHistorique = useCallback((dossierId, action) => {
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
@@ -311,6 +316,68 @@ export function AppProvider({ children }) {
     }));
   }, [utilisateurConnecte]);
 
+  // Annule la supervision d'un cycle (senior/expert/admin uniquement, gatée côté UI comme
+  // le reste de la signature) — redonne la main sur les réponses et débloque "Analyser",
+  // sans toucher "Fait par" qui reste l'historique de qui a complété le cycle.
+  const annulerSupervisionCycle = useCallback((dossierId, cycleId) => {
+    const cycleLabel = CYCLES_DILIGENCES.find(c => c.id === cycleId)?.label || cycleId;
+    setDossiers(prev => prev.map(d => {
+      if (d.id !== dossierId) return d;
+      const cyclesReponses = d.cyclesReponses || {};
+      const cycleData = { ...(cyclesReponses[cycleId] || {}) };
+      delete cycleData.supervise;
+      delete cycleData.dateSupervise;
+      let dossierMaj = { ...d, cyclesReponses: { ...cyclesReponses, [cycleId]: cycleData } };
+      dossierMaj = appendHistorique(dossierMaj, `Supervision du cycle "${cycleLabel}" annulée`);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      return dossierMaj;
+    }));
+  }, [utilisateurConnecte]);
+
+  // Lance l'analyse automatique d'un cycle (checks numériques + IA groupée) et enregistre
+  // les propositions obtenues à côté des réponses existantes, sans jamais toucher `statut`
+  // tant que l'utilisateur n'a pas explicitement accepté une proposition.
+  const analyserCycle = useCallback(async (dossierId, cycleId) => {
+    const { propositions } = await api.analyserDiligences(dossierId, cycleId);
+    const cycleLabel = CYCLES_DILIGENCES.find(c => c.id === cycleId)?.label || cycleId;
+    setDossiers(prev => prev.map(d => {
+      if (d.id !== dossierId) return d;
+      const cyclesReponses = d.cyclesReponses || {};
+      const cycleData = cyclesReponses[cycleId] || {};
+      const points = { ...(cycleData.points || {}) };
+      const date = new Date().toISOString();
+      propositions.forEach(({ pointId, statut, justification }) => {
+        points[pointId] = { ...(points[pointId] || {}), propositionIA: { statut, justification, date } };
+      });
+      let dossierMaj = { ...d, cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, points } } };
+      dossierMaj = appendHistorique(dossierMaj, `Analyse automatique lancée pour "${cycleLabel}"`);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      return dossierMaj;
+    }));
+    return propositions;
+  }, [utilisateurConnecte]);
+
+  // Reprend la proposition IA d'un point comme réponse réelle (l'utilisateur reste
+  // responsable de la signature "Fait par" / "Supervisé par", inchangée par cet appel).
+  const accepterPropositionIA = useCallback((dossierId, cycleId, pointId) => {
+    setDossiers(prev => prev.map(d => {
+      if (d.id !== dossierId) return d;
+      const cyclesReponses = d.cyclesReponses || {};
+      const cycleData = cyclesReponses[cycleId] || {};
+      const points = cycleData.points || {};
+      const point = points[pointId] || {};
+      const proposition = point.propositionIA;
+      if (!proposition) return d;
+      const pointMaj = { ...point, statut: proposition.statut, commentaire: proposition.justification, proposeParIA: true };
+      const dossierMaj = {
+        ...d,
+        cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, points: { ...points, [pointId]: pointMaj } } }
+      };
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      return dossierMaj;
+    }));
+  }, []);
+
   const ajouterCollaborateur = useCallback(async (dossierId, userId) => {
     try {
       const updated = await api.ajouterCollaborateur(dossierId, userId);
@@ -372,6 +439,7 @@ export function AppProvider({ children }) {
       chargerDonnees,
       creerDossier,
       dupliquerDossier,
+      supprimerDossier,
       ajouterHistorique,
       mettreAJourEtape,
       mettreAJourDossierComplet,
@@ -382,6 +450,9 @@ export function AppProvider({ children }) {
       mettreAJourReponse,
       signerCycleFait,
       signerCycleSupervise,
+      annulerSupervisionCycle,
+      analyserCycle,
+      accepterPropositionIA,
       ajouterCollaborateur,
       retirerCollaborateur,
       creerUtilisateur,

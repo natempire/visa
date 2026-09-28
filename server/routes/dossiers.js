@@ -329,4 +329,31 @@ router.delete('/:id/collaborateurs/:userId', authentifier, (req, res) => {
   }
 });
 
+// DELETE /api/dossiers/:id — suppression définitive (admin uniquement)
+router.delete('/:id', authentifier, (req, res) => {
+  try {
+    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.admin) {
+      return res.status(403).json({ erreur: 'Accès réservé aux administrateurs' });
+    }
+    const dossier = queryOne('SELECT * FROM dossiers WHERE id = ?', [req.params.id]);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    run('DELETE FROM collaborateurs_dossier WHERE dossier_id = ?', [req.params.id]);
+    run('DELETE FROM dossiers WHERE id = ?', [req.params.id]);
+
+    try {
+      const { nomDossierServeur } = require('./fichiers');
+      const fs = require('fs');
+      const path = require('path');
+      const dir = path.join(__dirname, '..', 'data', 'missions', nomDossierServeur(dossier));
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch (e) { console.error('Erreur suppression dossier fichiers:', e); }
+
+    res.json({ succes: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;

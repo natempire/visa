@@ -45,6 +45,7 @@ export const api = {
   getDossier: (id) => request('GET', `/api/dossiers/${id}`),
   creerDossier: (data) => request('POST', '/api/dossiers', data),
   mettreAJourDossier: (id, data) => request('PUT', `/api/dossiers/${id}`, data),
+  supprimerDossier: (id) => request('DELETE', `/api/dossiers/${id}`),
   ajouterCollaborateur: (dossierId, userId) =>
     request('POST', `/api/dossiers/${dossierId}/collaborateurs`, { userId }),
   retirerCollaborateur: (dossierId, userId) =>
@@ -70,4 +71,6 @@ export const api = {
   // IA
   genererNotePDCIA: (nomEntite, sections) =>
     request('POST', '/api/ia/note-pdc', { nomEntite, sections }),
+  analyserDiligences: (dossierId, cycleId) =>
+    request('POST', `/api/diligences-auto/${dossierId}/${cycleId}`),
 };
