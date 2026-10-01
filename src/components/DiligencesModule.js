@@ -114,28 +114,30 @@ export default function DiligencesModule({ dossier }) {
 
   return (
     <div>
-      {/* Stats + export */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-          <StatMini label="Points traités" valeur={`${totalFaits}/${totalPoints}`} couleur="var(--navy)" />
-          <StatMini label="Cycles supervisés" valeur={`${cyclesSupervises}/${CYCLES_DILIGENCES.length}`} couleur="#10b981" />
-          <StatMini label="Progression" valeur={`${totalPoints > 0 ? Math.round((totalFaits/totalPoints)*100) : 0}%`} couleur="var(--gold)" />
-        </div>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 12 }}>
+        <StatMini label="Points traités" valeur={`${totalFaits}/${totalPoints}`} couleur="var(--navy)" />
+        <StatMini label="Cycles supervisés" valeur={`${cyclesSupervises}/${CYCLES_DILIGENCES.length}`} couleur="#10b981" />
+        <StatMini label="Progression" valeur={`${totalPoints > 0 ? Math.round((totalFaits/totalPoints)*100) : 0}%`} couleur="var(--gold)" />
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
         {missionNumeriqueDisponible && isChefMission && (
           <button onClick={handleAnalyserNumerique} disabled={analyseNumEnCours} title="Vérification des points numériques uniquement — calcul local, gratuit, sans appel IA"
-            className="btn btn-outline btn-sm" style={{ flexShrink: 0, color: 'var(--navy)', borderColor: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            className="btn btn-outline btn-sm" style={{ color: 'var(--navy)', borderColor: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             {analyseNumEnCours ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Calculator size={13} />}
             {analyseNumEnCours ? 'Vérification…' : 'Vérifier les points numériques'}
           </button>
         )}
         {missionAutomatisable && isChefMission && (
           <button onClick={handleAnalyser} disabled={analyseEnCours} title="Analyse automatique de tous les cycles non supervisés, en un seul passage (appel IA)"
-            className="btn btn-outline btn-sm" style={{ flexShrink: 0, color: 'var(--gold)', borderColor: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            className="btn btn-outline btn-sm" style={{ color: 'var(--gold)', borderColor: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             {analyseEnCours ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={13} />}
             {analyseEnCours ? 'Analyse en cours…' : 'Analyser toutes les diligences'}
           </button>
         )}
-        <button onClick={handleExport} disabled={exporting} className="btn btn-outline btn-sm" style={{ flexShrink: 0, color: 'var(--navy)', borderColor: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button onClick={handleExport} disabled={exporting} className="btn btn-outline btn-sm" style={{ color: 'var(--navy)', borderColor: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
           <Download size={13} />{exporting ? 'Export…' : 'Export Excel'}
         </button>
       </div>
