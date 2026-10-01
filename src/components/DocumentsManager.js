@@ -1,27 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, FileText, FileSpreadsheet, File, Image, Trash2, Eye, Download, X, Loader, FolderOpen } from 'lucide-react';
+import { Upload, Trash2, Eye, Download, X, Loader, FolderOpen } from 'lucide-react';
 import { useApp, ROLES_NIVEAU } from '../context/AppContext';
 import { api } from '../utils/api';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-
-const ICONES_TYPE = {
-  pdf: { icone: FileText, couleur: '#ef4444', bg: '#fee2e2' },
-  xlsx: { icone: FileSpreadsheet, couleur: '#10b981', bg: '#d1fae5' },
-  xls: { icone: FileSpreadsheet, couleur: '#10b981', bg: '#d1fae5' },
-  docx: { icone: FileText, couleur: '#2563a8', bg: '#dbeafe' },
-  doc: { icone: FileText, couleur: '#2563a8', bg: '#dbeafe' },
-  png: { icone: Image, couleur: '#8b5cf6', bg: '#ede9fe' },
-  jpg: { icone: Image, couleur: '#8b5cf6', bg: '#ede9fe' },
-  jpeg: { icone: Image, couleur: '#8b5cf6', bg: '#ede9fe' },
-  csv: { icone: FileSpreadsheet, couleur: '#f59e0b', bg: '#fef3c7' },
-};
-
-function formatTaille(bytes) {
-  if (bytes < 1024) return bytes + ' o';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
-}
+import { getIcone, formatTaille } from '../utils/fileDisplay';
 
 // contexte: 'prise_de_connaissance' | 'diligences/Clients' | etc.
 export default function DocumentsManager({ dossier, contexte, titre, compact = false }) {
@@ -122,8 +105,6 @@ export default function DocumentsManager({ dossier, contexte, titre, compact = f
       setErreur('Impossible d\'ouvrir le fichier : ' + err.message);
     }
   };
-
-  const getIcone = (type) => ICONES_TYPE[type] || { icone: File, couleur: '#64748b', bg: '#f1f5f9' };
 
   if (compact) {
     // Compact mode for use inside diligences cycles
