@@ -1,10 +1,23 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const Anthropic = require('@anthropic-ai/sdk');
 const { authentifier } = require('./auth');
 
 const router = express.Router();
 
 const anthropic = new Anthropic();
+
+// Cette route déclenche un appel payant à Claude Opus par requête, sans aucun contrôle de
+// coût auparavant — une boucle côté client ou un jeton divulgué pouvait la marteler sans
+// limite. 20 générations / 15 min est large pour un usage normal (plusieurs essais pendant
+// qu'on affine les réponses du questionnaire) mais rend un abus coûteux impraticable.
+const notePdcLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erreur: 'Trop de générations de note. Réessayez dans quelques minutes.' },
+});
 
 const SYSTEM_PROMPT = `Tu es un expert-comptable et commissaire aux comptes senior, spécialisé dans l'audit d'entités appliquant le référentiel SYSCOHADA Révisé (zone OHADA).
 
@@ -43,7 +56,7 @@ function construireInvite(nomEntite, sections) {
   return `Entité concernée : ${nomEntite || 'non renseignée'}\n\nRéponses du questionnaire de prise de connaissance :\n\n${corps}\n\nRédige la note de prise de connaissance à partir de ces éléments.`;
 }
 
-router.post('/note-pdc', authentifier, async (req, res) => {
+router.post('/note-pdc', authentifier, notePdcLimiter, async (req, res) => {
   try {
     const { nomEntite, sections } = req.body;
 
