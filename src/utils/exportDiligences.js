@@ -1,31 +1,6 @@
-import PizZip from 'pizzip';
-import Docxtemplater from 'docxtemplater';
-import { saveAs } from 'file-saver';
 import { CYCLES_DILIGENCES } from './diligencesData';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-
-// Build the Word diligences report matching FIDEA template
-export async function exportDiligencesWord(dossier, utilisateurs) {
-  try {
-    // We'll build a custom docx from scratch using docxtemplater
-    // Fetch the template
-    const response = await fetch(`${process.env.PUBLIC_URL}/templates/diligences.docx`);
-
-    // If no template, build manually using a base approach
-    // Since we don't have a diligences template in public/, we'll generate HTML and convert
-    // Actually, let's use the Refus template as base structure and replace content
-    // Better: generate a proper Word doc using docx library approach via an API call
-
-    // For now, generate a well-structured Excel (matching the table format of the original)
-    // and also provide Word via the existing docxtemplater approach
-    await exportDiligencesExcel(dossier, utilisateurs);
-    return { succes: true };
-  } catch (e) {
-    console.error(e);
-    return { succes: false, erreur: e.message };
-  }
-}
 
 export async function exportDiligencesExcel(dossier, utilisateurs) {
   // Dynamic import to avoid build issues

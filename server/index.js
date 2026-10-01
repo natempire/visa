@@ -22,9 +22,7 @@ app.use('/api/auth', require('./routes/auth').router);
 app.use('/api/utilisateurs', require('./routes/utilisateurs'));
 app.use('/api/dossiers', require('./routes/dossiers'));
 
-const { router: fichiersRouter, creerStructureDossier } = require('./routes/fichiers');
-app.use('/api/fichiers', fichiersRouter);
-app.locals.creerStructureDossier = creerStructureDossier;
+app.use('/api/fichiers', require('./routes/fichiers').router);
 
 app.use('/api/ia', require('./routes/ia'));
 app.use('/api/diligences-auto', require('./routes/diligencesAuto'));
