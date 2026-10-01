@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
 const { authentifier } = require('./auth');
-const { ROLES_NIVEAU } = require('../roles');
+const { requireRole } = require('../utils/requireRole');
 const { queryOne } = require('../db');
 const { resolveDir, listFiles } = require('./fichiers');
 const { construireBlocsDocuments } = require('../utils/documentExtraction');
@@ -235,12 +235,8 @@ async function analyserToutesLesSections(dossierId, sections) {
 // POST /api/diligences-auto/:dossierId — analyse TOUTE la mission en un seul appel IA
 // (regroupant tous les cycles narratifs), plus les checks numériques calculés en code par
 // cycle (gratuits, aucun appel IA). Les cycles déjà supervisés sont ignorés (verrouillés).
-router.post('/:dossierId', authentifier, async (req, res) => {
+router.post('/:dossierId', authentifier, requireRole('assistant'), async (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.assistant) {
-      return res.status(403).json({ erreur: 'Accès non autorisé' });
-    }
-
     const dossier = queryOne('SELECT cycles_reponses_json FROM dossiers WHERE id = ?', [req.params.dossierId]);
     if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
     const cyclesReponses = safeJSON(dossier.cycles_reponses_json, {});
@@ -276,12 +272,8 @@ router.post('/:dossierId', authentifier, async (req, res) => {
 // POST /api/diligences-auto/:dossierId/numerique — uniquement les checks numériques
 // (calcul en code, aucun appel IA) : gratuit et instantané, peut être relancé librement
 // (ex. après correction d'un fichier de balance) sans redéclencher l'analyse IA payante.
-router.post('/:dossierId/numerique', authentifier, async (req, res) => {
+router.post('/:dossierId/numerique', authentifier, requireRole('assistant'), async (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.assistant) {
-      return res.status(403).json({ erreur: 'Accès non autorisé' });
-    }
-
     const dossier = queryOne('SELECT cycles_reponses_json FROM dossiers WHERE id = ?', [req.params.dossierId]);
     if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
     const cyclesReponses = safeJSON(dossier.cycles_reponses_json, {});

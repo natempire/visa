@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { query, queryOne, run } = require('../db');
 const { authentifier, formatUser } = require('./auth');
 const { ROLES_NIVEAU } = require('../roles');
+const { requireRole } = require('../utils/requireRole');
 
 const router = express.Router();
 
@@ -27,12 +28,8 @@ router.get('/', authentifier, (req, res) => {
 });
 
 // POST /api/utilisateurs — créer un utilisateur (expert/admin seulement)
-router.post('/', authentifier, async (req, res) => {
+router.post('/', authentifier, requireRole('expert'), async (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.expert) {
-      return res.status(403).json({ erreur: 'Accès réservé à l\'expert-comptable' });
-    }
-
     const { nom, email, motDePasse, role } = req.body;
 
     if (!nom || !email || !motDePasse || !role) {
@@ -74,12 +71,8 @@ router.post('/', authentifier, async (req, res) => {
 });
 
 // PUT /api/utilisateurs/:id — modifier un utilisateur (expert/admin seulement)
-router.put('/:id', authentifier, async (req, res) => {
+router.put('/:id', authentifier, requireRole('expert'), async (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.expert) {
-      return res.status(403).json({ erreur: 'Accès réservé à l\'expert-comptable' });
-    }
-
     const { nom, email, role, motDePasse } = req.body;
     const userId = parseInt(req.params.id);
 
@@ -126,12 +119,8 @@ router.put('/:id', authentifier, async (req, res) => {
 });
 
 // DELETE /api/utilisateurs/:id — désactiver un utilisateur (expert seulement)
-router.delete('/:id', authentifier, (req, res) => {
+router.delete('/:id', authentifier, requireRole('expert'), (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.expert) {
-      return res.status(403).json({ erreur: 'Accès réservé à l\'expert-comptable' });
-    }
-
     const userId = parseInt(req.params.id);
     if (userId === req.userId) {
       return res.status(400).json({ erreur: 'Vous ne pouvez pas désactiver votre propre compte' });

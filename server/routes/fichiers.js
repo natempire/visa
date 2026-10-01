@@ -4,8 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const { authentifier } = require('./auth');
 const { queryOne } = require('../db');
-const { ROLES_NIVEAU } = require('../roles');
 const { dossierAccessible } = require('../utils/dossierAccess');
+const { requireRole } = require('../utils/requireRole');
 
 const router = express.Router();
 
@@ -179,11 +179,8 @@ router.get('/:dossierId/fichier/:contexte(*)/:filename', (req, res, next) => {
 });
 
 // DELETE /api/fichiers/:dossierId/fichier/:contexte/:filename
-router.delete('/:dossierId/fichier/:contexte(*)/:filename', authentifier, verifierAccesDossier, (req, res) => {
+router.delete('/:dossierId/fichier/:contexte(*)/:filename', authentifier, verifierAccesDossier, requireRole('senior'), (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.senior) {
-      return res.status(403).json({ erreur: 'Accès non autorisé' });
-    }
     const dir = resolveDir(req.params.dossierId, req.params.contexte);
     const filePath = safeResolve(dir, req.params.filename);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
@@ -195,11 +192,8 @@ router.delete('/:dossierId/fichier/:contexte(*)/:filename', authentifier, verifi
 });
 
 // POST /api/fichiers/:dossierId/sauvegarder-genere
-router.post('/:dossierId/sauvegarder-genere', authentifier, verifierAccesDossier, (req, res) => {
+router.post('/:dossierId/sauvegarder-genere', authentifier, verifierAccesDossier, requireRole('senior'), (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.senior) {
-      return res.status(403).json({ erreur: 'Accès non autorisé' });
-    }
     const { nomFichier, contenuBase64 } = req.body;
     if (!nomFichier || !contenuBase64) return res.status(400).json({ erreur: 'Données manquantes' });
 

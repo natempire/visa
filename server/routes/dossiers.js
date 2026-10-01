@@ -3,6 +3,7 @@ const { query, queryOne, run } = require('../db');
 const { authentifier } = require('./auth');
 const { ROLES_NIVEAU } = require('../roles');
 const { dossierAccessible } = require('../utils/dossierAccess');
+const { requireRole } = require('../utils/requireRole');
 
 const router = express.Router();
 
@@ -160,12 +161,8 @@ router.get('/:id', authentifier, (req, res) => {
 });
 
 // POST /api/dossiers — créer un dossier
-router.post('/', authentifier, (req, res) => {
+router.post('/', authentifier, requireRole('senior'), (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.senior) {
-      return res.status(403).json({ erreur: 'Accès réservé aux seniors et experts' });
-    }
-
     const d = req.body;
     if (!d.nomEntite || !d.nccEntite || !d.exercice) {
       return res.status(400).json({ erreur: 'Nom entité, NCC et exercice requis' });
@@ -272,11 +269,8 @@ router.put('/:id', authentifier, (req, res) => {
 });
 
 // POST /api/dossiers/:id/collaborateurs — ajouter un collaborateur
-router.post('/:id/collaborateurs', authentifier, (req, res) => {
+router.post('/:id/collaborateurs', authentifier, requireRole('senior'), (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.senior) {
-      return res.status(403).json({ erreur: 'Accès non autorisé' });
-    }
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ erreur: 'userId requis' });
 
@@ -310,11 +304,8 @@ router.post('/:id/collaborateurs', authentifier, (req, res) => {
 });
 
 // DELETE /api/dossiers/:id/collaborateurs/:userId
-router.delete('/:id/collaborateurs/:userId', authentifier, (req, res) => {
+router.delete('/:id/collaborateurs/:userId', authentifier, requireRole('senior'), (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.senior) {
-      return res.status(403).json({ erreur: 'Accès non autorisé' });
-    }
     const targetId = parseInt(req.params.userId);
     if (targetId === req.userId) {
       return res.status(400).json({ erreur: 'Vous ne pouvez pas vous retirer vous-même' });
@@ -331,11 +322,8 @@ router.delete('/:id/collaborateurs/:userId', authentifier, (req, res) => {
 });
 
 // DELETE /api/dossiers/:id — suppression définitive (admin uniquement)
-router.delete('/:id', authentifier, (req, res) => {
+router.delete('/:id', authentifier, requireRole('admin'), (req, res) => {
   try {
-    if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.admin) {
-      return res.status(403).json({ erreur: 'Accès réservé aux administrateurs' });
-    }
     const dossier = queryOne('SELECT * FROM dossiers WHERE id = ?', [req.params.id]);
     if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
 
