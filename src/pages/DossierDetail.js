@@ -16,6 +16,19 @@ import BouclageModule from '../components/BouclageModule';
 
 const ICONES = { Search, FileText, FolderOpen, ClipboardCheck, BookOpen, Lock, Award };
 
+// Étapes avec leur propre composant dédié (rendu directement) plutôt que le composant
+// générique EtapeGenerique — aussi utilisé pour savoir quand ne PAS afficher le bouton
+// "compléter" générique (chacune de ces étapes a son propre bouton avec son propre libellé).
+const ETAPES_AVEC_CONTENU_PERSONNALISE = ['prise_de_connaissance', 'demande_documents', 'diligences', 'bouclage', 'note_synthese'];
+
+const LIBELLES_BOUTON_COMPLETER = {
+  prise_de_connaissance: 'Valider la prise de connaissance',
+  demande_documents: 'Valider la réception des documents',
+  diligences: 'Clôturer les diligences',
+  note_synthese: 'Valider la note de synthèse',
+  bouclage: 'Valider le bouclage',
+};
+
 export default function DossierDetail({ dossierId, setPage }) {
   const { dossiers, utilisateurConnecte, utilisateurs, mettreAJourEtape, ETAPES, ROLES, peutAccederEtape, ajouterHistorique, retirerCollaborateur } = useApp();
   const [etapeOuverte, setEtapeOuverte] = useState(null);
@@ -104,6 +117,12 @@ export default function DossierDetail({ dossierId, setPage }) {
                   const isOuverte = etapeOuverte === etape.cle;
                   const peutFaire = peutModifier(etape.cle);
                   const isLast = idx === ETAPES.length - 1;
+                  // Diligences se ferme à un niveau de rôle fixe (senior+), indépendamment de
+                  // ETAPES_ROLE_MIN — toutes les autres étapes suivent la permission normale.
+                  const peutCompleterEtape = etape.cle === 'diligences'
+                    ? ROLES_NIVEAU[utilisateurConnecte.role] >= ROLES_NIVEAU.senior
+                    : peutFaire;
+                  const libelleBoutonCompleter = LIBELLES_BOUTON_COMPLETER[etape.cle] || 'Marquer comme complété';
 
                   return (
                     <div key={etape.cle} className="etape-item">
@@ -168,7 +187,7 @@ export default function DossierDetail({ dossierId, setPage }) {
                             )}
 
                             {/* Autres étapes */}
-                            {!['prise_de_connaissance','demande_documents', 'diligences', 'bouclage', 'note_synthese'].includes(etape.cle) && (
+                            {!ETAPES_AVEC_CONTENU_PERSONNALISE.includes(etape.cle) && (
                               <EtapeGenerique
                                 etape={etape} dossier={dossier} statut={statut}
                                 peutFaire={peutFaire}
@@ -177,45 +196,10 @@ export default function DossierDetail({ dossierId, setPage }) {
                               />
                             )}
 
-                            {/* Bouton compléter générique */}
-                            {!['prise_de_connaissance','demande_documents', 'diligences', 'bouclage', 'note_synthese'].includes(etape.cle) && peutFaire && statut !== 'complete' && statut !== 'valide' && (
-                              <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => marquerComplete(etape.cle)}>
-                                <Check size={13} /> Marquer comme complété
-                              </button>
-                            )}
-
-                            {/* Bouton compléter PDC */}
-                            {etape.cle === 'prise_de_connaissance' && peutFaire && statut !== 'complete' && statut !== 'valide' && (
+                            {/* Bouton compléter */}
+                            {peutCompleterEtape && statut !== 'complete' && statut !== 'valide' && (
                               <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={() => marquerComplete(etape.cle)}>
-                                <Check size={13} /> Valider la prise de connaissance
-                              </button>
-                            )}
-
-                            {/* Bouton compléter pour demande_documents */}
-                            {etape.cle === 'demande_documents' && peutFaire && statut !== 'complete' && statut !== 'valide' && (
-                              <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={() => marquerComplete(etape.cle)}>
-                                <Check size={13} /> Valider la réception des documents
-                              </button>
-                            )}
-
-                            {/* Bouton compléter pour diligences */}
-                            {etape.cle === 'diligences' && ROLES_NIVEAU[utilisateurConnecte.role] >= ROLES_NIVEAU.senior && statut !== 'complete' && statut !== 'valide' && (
-                              <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={() => marquerComplete(etape.cle)}>
-                                <Check size={13} /> Clôturer les diligences
-                              </button>
-                            )}
-
-                            {/* Bouton compléter pour note_synthese */}
-                            {etape.cle === 'note_synthese' && peutFaire && statut !== 'complete' && statut !== 'valide' && (
-                              <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={() => marquerComplete(etape.cle)}>
-                                <Check size={13} /> Valider la note de synthèse
-                              </button>
-                            )}
-
-                            {/* Bouton compléter pour bouclage */}
-                            {etape.cle === 'bouclage' && peutFaire && statut !== 'complete' && statut !== 'valide' && (
-                              <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={() => marquerComplete(etape.cle)}>
-                                <Check size={13} /> Valider le bouclage
+                                <Check size={13} /> {libelleBoutonCompleter}
                               </button>
                             )}
 
