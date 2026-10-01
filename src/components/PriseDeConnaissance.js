@@ -38,10 +38,7 @@ export default function PriseDeConnaissance({ dossier, peutFaire }) {
   const saveToServer = async (data) => {
     setSaveStatus('saving');
     try {
-      await new Promise(resolve => {
-        mettreAJourEtape(dossier.id, 'prise_de_connaissance', { pdcReponses: data });
-        resolve();
-      });
+      await mettreAJourEtape(dossier.id, 'prise_de_connaissance', { pdcReponses: data });
       localStorage.setItem(LOCAL_KEY(dossier.id), JSON.stringify(data));
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);

@@ -191,7 +191,13 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Returns the save's promise (resolves/rejects with the real server outcome) so a caller
+  // that needs to know whether the save actually succeeded — e.g. PriseDeConnaissance.js's
+  // autosave indicator — can await it. Callers that don't care can keep ignoring the return
+  // value exactly as before: the internal .catch below attaches a handler before the promise
+  // is returned, so an ignored rejection here never produces an "unhandled rejection" warning.
   const mettreAJourEtape = useCallback((dossierId, etapeCle, donnees) => {
+    let dossierMaj = null;
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
       const etapesMaj = {
@@ -205,11 +211,13 @@ export function AppProvider({ children }) {
           etapeActuelle = Math.min(i + 2, ETAPES.length);
         }
       }
-      const dossierMaj = { ...d, etapes: etapesMaj, etapeActuelle };
-      // Persist async
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      dossierMaj = { ...d, etapes: etapesMaj, etapeActuelle };
       return dossierMaj;
     }));
+    if (!dossierMaj) return Promise.resolve();
+    const sauvegarde = api.mettreAJourDossier(dossierId, dossierMaj);
+    sauvegarde.catch(console.error);
+    return sauvegarde;
   }, []);
 
   const mettreAJourDocument = useCallback((dossierId, docId, statut) => {
