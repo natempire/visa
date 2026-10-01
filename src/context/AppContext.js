@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../utils/api';
 import { CYCLES_DILIGENCES, DOCUMENTS_REQUIS } from '../utils/diligencesData';
 
@@ -43,6 +43,20 @@ export function AppProvider({ children }) {
   const [chargement, setChargement] = useState(false);
   const [erreurConnexion, setErreurConnexion] = useState(false);
   const [sauvegarde, setSauvegarde] = useState(false);
+  const [erreurSauvegarde, setErreurSauvegarde] = useState(null);
+  const erreurSauvegardeTimer = useRef(null);
+
+  // Affiche un bandeau d'erreur bref quand un enregistrement en arrière-plan échoue. Avant,
+  // ces échecs étaient uniquement loggés en console (fire-and-forget sur toute mise à jour de
+  // dossier), ce qui donnait l'impression qu'une action avait réussi alors qu'elle avait
+  // silencieusement échoué — exactement ce qui s'est produit avec "annuler supervision" plus
+  // tôt dans ce projet.
+  const signalerErreurSauvegarde = useCallback((err) => {
+    console.error('Erreur sauvegarde:', err);
+    setErreurSauvegarde("Erreur lors de l'enregistrement — vérifiez votre connexion et réessayez.");
+    clearTimeout(erreurSauvegardeTimer.current);
+    erreurSauvegardeTimer.current = setTimeout(() => setErreurSauvegarde(null), 4000);
+  }, []);
 
   // Load initial data when user is connected
   useEffect(() => {
@@ -149,7 +163,7 @@ export function AppProvider({ children }) {
         date: new Date().toISOString(),
       }].slice(-50); // garder les 50 dernières actions
       const dossierMaj = { ...d, historique };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -216,7 +230,7 @@ export function AppProvider({ children }) {
     }));
     if (!dossierMaj) return Promise.resolve();
     const sauvegarde = api.mettreAJourDossier(dossierId, dossierMaj);
-    sauvegarde.catch(console.error);
+    sauvegarde.catch(signalerErreurSauvegarde);
     return sauvegarde;
   }, []);
 
@@ -231,7 +245,7 @@ export function AppProvider({ children }) {
           || docId;
         dossierMaj = appendHistorique(dossierMaj, `Document reçu : "${docNom}"`);
       }
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -245,7 +259,7 @@ export function AppProvider({ children }) {
       const documentsRequisPersonnalises = [...(d.documentsRequisPersonnalises || []), nouveauDoc];
       let dossierMaj = { ...d, documentsRequisPersonnalises };
       dossierMaj = appendHistorique(dossierMaj, `Document ajouté à la liste : "${nom}"`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -259,7 +273,7 @@ export function AppProvider({ children }) {
       delete documentsRecus[docId];
       let dossierMaj = { ...d, documentsRequisPersonnalises, documentsRecus };
       if (doc) dossierMaj = appendHistorique(dossierMaj, `Document retiré de la liste : "${doc.nom}"`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -269,7 +283,7 @@ export function AppProvider({ children }) {
       if (d.id !== dossierId) return d;
       const cyclesAssignations = { ...(d.cyclesAssignations || {}), [cycleId]: userId };
       const dossierMaj = { ...d, cyclesAssignations };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, []);
@@ -287,7 +301,7 @@ export function AppProvider({ children }) {
           [cycleId]: { ...cycleData, points: { ...points, [pointId]: { ...(points[pointId] || {}), ...reponse } } }
         }
       };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, []);
@@ -303,7 +317,7 @@ export function AppProvider({ children }) {
         cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, faitPar: userId, dateFait: new Date().toISOString() } }
       };
       dossierMaj = appendHistorique(dossierMaj, `Cycle "${cycleLabel}" signé (fait)`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -319,7 +333,7 @@ export function AppProvider({ children }) {
         cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, supervise: userId, dateSupervise: new Date().toISOString() } }
       };
       dossierMaj = appendHistorique(dossierMaj, `Cycle "${cycleLabel}" supervisé`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -337,7 +351,7 @@ export function AppProvider({ children }) {
       delete cycleData.dateSupervise;
       let dossierMaj = { ...d, cyclesReponses: { ...cyclesReponses, [cycleId]: cycleData } };
       dossierMaj = appendHistorique(dossierMaj, `Supervision du cycle "${cycleLabel}" annulée`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -358,7 +372,7 @@ export function AppProvider({ children }) {
       });
       let dossierMaj = { ...d, cyclesReponses };
       dossierMaj = appendHistorique(dossierMaj, actionHistorique);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, [utilisateurConnecte]);
@@ -398,7 +412,7 @@ export function AppProvider({ children }) {
         ...d,
         cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, points: { ...points, [pointId]: pointMaj } } }
       };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
+      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
   }, []);
@@ -455,6 +469,7 @@ export function AppProvider({ children }) {
       utilisateurs,
       chargement,
       sauvegarde,
+      erreurSauvegarde,
       erreurConnexion,
       ROLES,
       ETAPES,

@@ -10,7 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
 function AppInner() {
-  const { utilisateurConnecte, deconnexion } = useApp();
+  const { utilisateurConnecte, deconnexion, erreurSauvegarde } = useApp();
 
   const [page, setPage] = useState(() => sessionStorage.getItem('fidea_page') || 'dashboard');
   const [dossierActif, setDossierActif] = useState(() => sessionStorage.getItem('fidea_dossier') || null);
@@ -67,6 +67,15 @@ function AppInner() {
 
   return (
     <div className="app-shell">
+      {erreurSauvegarde && (
+        <div style={{
+          position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+          background: '#991b1b', color: 'white', padding: '10px 20px', borderRadius: 10,
+          fontSize: 13, fontWeight: 500, zIndex: 9999, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        }}>
+          ⚠ {erreurSauvegarde}
+        </div>
+      )}
       {tokenExpire && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
