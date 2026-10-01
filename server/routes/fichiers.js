@@ -5,6 +5,7 @@ const fs = require('fs');
 const { authentifier } = require('./auth');
 const { queryOne } = require('../db');
 const { ROLES_NIVEAU } = require('../roles');
+const { dossierAccessible } = require('../utils/dossierAccess');
 
 const router = express.Router();
 
@@ -98,6 +99,19 @@ const upload = multer({
   }
 });
 
+// Toutes les routes ci-dessous exposent les documents D'UN dossier précis — sans ce contrôle,
+// n'importe quel utilisateur authentifié pouvait lister/télécharger/supprimer les fichiers de
+// n'importe quel dossier (y compris ceux d'autres équipes) en devinant son id, puisque ni
+// resolveDir() ni les routes elles-mêmes ne vérifiaient l'appartenance — seule l'existence du
+// dossier. Même règle d'accès que dossiers.js (dossierAccessible), appliquée ici en middleware
+// pour s'exécuter AVANT tout accès disque, y compris avant que multer n'écrive un fichier reçu.
+function verifierAccesDossier(req, res, next) {
+  if (!dossierAccessible(req.params.dossierId, req.userId, req.userRole)) {
+    return res.status(404).json({ erreur: 'Dossier non trouvé' });
+  }
+  next();
+}
+
 function listFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
@@ -125,7 +139,7 @@ function listFiles(dir) {
 router.get('/:dossierId/fichier/:contexte(*)/:filename', (req, res, next) => {
   if (req.query.token) req.headers.authorization = 'Bearer ' + req.query.token;
   next();
-}, authentifier, (req, res) => {
+}, authentifier, verifierAccesDossier, (req, res) => {
   try {
     const dir = resolveDir(req.params.dossierId, req.params.contexte);
     const filePath = safeResolve(dir, req.params.filename);
@@ -165,7 +179,7 @@ router.get('/:dossierId/fichier/:contexte(*)/:filename', (req, res, next) => {
 });
 
 // DELETE /api/fichiers/:dossierId/fichier/:contexte/:filename
-router.delete('/:dossierId/fichier/:contexte(*)/:filename', authentifier, (req, res) => {
+router.delete('/:dossierId/fichier/:contexte(*)/:filename', authentifier, verifierAccesDossier, (req, res) => {
   try {
     if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.senior) {
       return res.status(403).json({ erreur: 'Accès non autorisé' });
@@ -181,7 +195,7 @@ router.delete('/:dossierId/fichier/:contexte(*)/:filename', authentifier, (req, 
 });
 
 // POST /api/fichiers/:dossierId/sauvegarder-genere
-router.post('/:dossierId/sauvegarder-genere', authentifier, (req, res) => {
+router.post('/:dossierId/sauvegarder-genere', authentifier, verifierAccesDossier, (req, res) => {
   try {
     if (ROLES_NIVEAU[req.userRole] < ROLES_NIVEAU.senior) {
       return res.status(403).json({ erreur: 'Accès non autorisé' });
@@ -204,7 +218,7 @@ router.post('/:dossierId/sauvegarder-genere', authentifier, (req, res) => {
 router.get('/:dossierId/:contexte(*)', (req, res, next) => {
   if (req.query.token) req.headers.authorization = 'Bearer ' + req.query.token;
   next();
-}, authentifier, (req, res) => {
+}, authentifier, verifierAccesDossier, (req, res) => {
   try {
     const dir = resolveDir(req.params.dossierId, req.params.contexte);
     res.json(listFiles(dir));
@@ -215,7 +229,7 @@ router.get('/:dossierId/:contexte(*)', (req, res, next) => {
 });
 
 // POST /api/fichiers/:dossierId/:contexte — upload file (route générique EN DERNIER)
-router.post('/:dossierId/:contexte(*)', authentifier, upload.single('fichier'), (req, res) => {
+router.post('/:dossierId/:contexte(*)', authentifier, verifierAccesDossier, upload.single('fichier'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ erreur: 'Aucun fichier reçu' });
     const parts = req.file.filename.split('_');

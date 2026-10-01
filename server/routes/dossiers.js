@@ -2,6 +2,7 @@ const express = require('express');
 const { query, queryOne, run } = require('../db');
 const { authentifier } = require('./auth');
 const { ROLES_NIVEAU } = require('../roles');
+const { dossierAccessible } = require('../utils/dossierAccess');
 
 const router = express.Router();
 
@@ -103,6 +104,14 @@ function safeJSON(str, fallback) {
   try { return JSON.parse(str || '{}'); } catch { return fallback; }
 }
 
+// Préserve une valeur explicitement envoyée par le client — y compris '', 0 ou false — au lieu
+// de la confondre avec "champ non fourni". `d.champ || ancienneValeur` traiterait un champ texte
+// volontairement vidé comme absent et garderait silencieusement l'ancienne valeur en base : la
+// mise à jour réussirait (200) mais le champ resterait inchangé, sans erreur côté utilisateur.
+function champOuDefaut(valeur, defaut) {
+  return valeur !== undefined ? valeur : defaut;
+}
+
 function enrichWithCollaborateurs(dossier) {
   if (!dossier) return null;
   const collabs = query(
@@ -111,21 +120,6 @@ function enrichWithCollaborateurs(dossier) {
   );
   dossier.collaborateurs = collabs.map(c => c.id);
   return dossier;
-}
-
-// Expert/admin peuvent voir et modifier n'importe quel dossier, comme sur la liste
-// (GET /api/dossiers) — être collaborateur explicite n'est requis que pour senior/assistant.
-// Sans ça, un expert/admin pouvait ouvrir un dossier où il n'est pas explicitement ajouté
-// et voir ses données (via la liste), mais tout enregistrement échouait silencieusement.
-function dossierAccessible(dossierId, userId, userRole) {
-  if (ROLES_NIVEAU[userRole] >= ROLES_NIVEAU.expert) {
-    return queryOne('SELECT * FROM dossiers WHERE id = ?', [dossierId]);
-  }
-  return queryOne(`
-    SELECT d.* FROM dossiers d
-    INNER JOIN collaborateurs_dossier cd ON d.id = cd.dossier_id
-    WHERE d.id = ? AND cd.utilisateur_id = ?
-  `, [dossierId, userId]);
 }
 
 // GET /api/dossiers — dossiers de l'utilisateur connecté
@@ -239,21 +233,21 @@ router.put('/:id', authentifier, (req, res) => {
       documents_requis_perso_json=?, note_pdc=?, note_pdc_verrouillee=?, etape_actuelle=?, statut=?
       WHERE id=?`,
     [
-      d.nomEntite||dossier.nom_entite,
-      d.nccEntite||dossier.ncc_entite,
-      d.adresseEntite||dossier.adresse_entite||'',
-      d.nomGerant||dossier.nom_gerant||'',
-      d.chiffreAffaires||dossier.chiffre_affaires||'',
-      d.nombreHeures||dossier.nombre_heures||'',
-      d.montantHonoraires||dossier.montant_honoraires||'',
-      d.totalBilan||dossier.total_bilan||'',
-      d.capitauxPropres||dossier.capitaux_propres||'',
-      d.resultatNet||dossier.resultat_net||'',
-      d.totalProduits||dossier.total_produits||'',
-      d.nomExpert||dossier.nom_expert||'',
-      d.nomAssistant||dossier.nom_assistant||'',
-      d.planning||dossier.planning||'',
-      d.listeDocuments||dossier.liste_documents||'',
+      champOuDefaut(d.nomEntite, dossier.nom_entite),
+      champOuDefaut(d.nccEntite, dossier.ncc_entite),
+      champOuDefaut(d.adresseEntite, dossier.adresse_entite || ''),
+      champOuDefaut(d.nomGerant, dossier.nom_gerant || ''),
+      champOuDefaut(d.chiffreAffaires, dossier.chiffre_affaires || ''),
+      champOuDefaut(d.nombreHeures, dossier.nombre_heures || ''),
+      champOuDefaut(d.montantHonoraires, dossier.montant_honoraires || ''),
+      champOuDefaut(d.totalBilan, dossier.total_bilan || ''),
+      champOuDefaut(d.capitauxPropres, dossier.capitaux_propres || ''),
+      champOuDefaut(d.resultatNet, dossier.resultat_net || ''),
+      champOuDefaut(d.totalProduits, dossier.total_produits || ''),
+      champOuDefaut(d.nomExpert, dossier.nom_expert || ''),
+      champOuDefaut(d.nomAssistant, dossier.nom_assistant || ''),
+      champOuDefaut(d.planning, dossier.planning || ''),
+      champOuDefaut(d.listeDocuments, dossier.liste_documents || ''),
       JSON.stringify(d.etapes)||dossier.etapes_json,
       JSON.stringify(d.cyclesAssignations)||dossier.cycles_assignations_json,
       JSON.stringify(d.cyclesReponses)||dossier.cycles_reponses_json,
@@ -261,10 +255,10 @@ router.put('/:id', authentifier, (req, res) => {
       JSON.stringify(d.historique)||dossier.historique_json,
       JSON.stringify(d.documentsGeneres)||dossier.documents_generes_json,
       JSON.stringify(d.documentsRequisPersonnalises)||dossier.documents_requis_perso_json,
-      d.notePDC !== undefined ? d.notePDC : (dossier.note_pdc || ''),
+      champOuDefaut(d.notePDC, dossier.note_pdc || ''),
       d.notePDCVerrouillee !== undefined ? (d.notePDCVerrouillee ? 1 : 0) : (dossier.note_pdc_verrouillee || 0),
-      d.etapeActuelle||dossier.etape_actuelle,
-      d.statut||dossier.statut,
+      champOuDefaut(d.etapeActuelle, dossier.etape_actuelle),
+      champOuDefaut(d.statut, dossier.statut),
       req.params.id
     ]);
 
