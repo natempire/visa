@@ -334,28 +334,45 @@ export function AppProvider({ children }) {
     }));
   }, [utilisateurConnecte]);
 
-  // Lance l'analyse automatique d'un cycle (checks numériques + IA groupée) et enregistre
-  // les propositions obtenues à côté des réponses existantes, sans jamais toucher `statut`
-  // tant que l'utilisateur n'a pas explicitement accepté une proposition.
-  const analyserCycle = useCallback(async (dossierId, cycleId) => {
-    const { propositions } = await api.analyserDiligences(dossierId, cycleId);
-    const cycleLabel = CYCLES_DILIGENCES.find(c => c.id === cycleId)?.label || cycleId;
+  // Fusionne des propositions (venant de l'analyse complète ou numérique-seule) dans
+  // cyclesReponses, sans jamais toucher `statut` tant que l'utilisateur n'a pas explicitement
+  // accepté une proposition, et fait la seule sauvegarde du dossier pour tout le lot.
+  const appliquerPropositions = useCallback((dossierId, propositions, actionHistorique) => {
+    const date = new Date().toISOString();
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
-      const cyclesReponses = d.cyclesReponses || {};
-      const cycleData = cyclesReponses[cycleId] || {};
-      const points = { ...(cycleData.points || {}) };
-      const date = new Date().toISOString();
-      propositions.forEach(({ pointId, statut, justification }) => {
+      const cyclesReponses = { ...(d.cyclesReponses || {}) };
+      propositions.forEach(({ pointId, cycleId, statut, justification }) => {
+        const cycleData = { ...(cyclesReponses[cycleId] || {}) };
+        const points = { ...(cycleData.points || {}) };
         points[pointId] = { ...(points[pointId] || {}), propositionIA: { statut, justification, date } };
+        cyclesReponses[cycleId] = { ...cycleData, points };
       });
-      let dossierMaj = { ...d, cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, points } } };
-      dossierMaj = appendHistorique(dossierMaj, `Analyse automatique lancée pour "${cycleLabel}"`);
+      let dossierMaj = { ...d, cyclesReponses };
+      dossierMaj = appendHistorique(dossierMaj, actionHistorique);
       api.mettreAJourDossier(dossierId, dossierMaj).catch(console.error);
       return dossierMaj;
     }));
-    return propositions;
   }, [utilisateurConnecte]);
+
+  // Lance l'analyse automatique de TOUTE la mission en un seul appel (checks numériques +
+  // un unique appel IA groupant tous les cycles narratifs non supervisés) — volontairement
+  // pas un appel par cycle, pour ne pas payer le coût fixe de l'IA plusieurs fois.
+  const analyserMission = useCallback(async (dossierId) => {
+    const { propositions, usage } = await api.analyserDiligences(dossierId);
+    const coutLisible = usage ? ` (coût ≈ $${usage.coutUSD.toFixed(2)})` : '';
+    appliquerPropositions(dossierId, propositions, `Analyse automatique lancée pour l'ensemble des diligences${coutLisible}`);
+    return { propositions, usage };
+  }, [appliquerPropositions]);
+
+  // Version gratuite : uniquement les checks numériques (calcul en code, aucun appel IA) —
+  // peut être relancée librement (ex. après correction d'un fichier de balance) sans
+  // redéclencher l'analyse IA payante.
+  const analyserPointsNumeriques = useCallback(async (dossierId) => {
+    const { propositions } = await api.analyserDiligencesNumeriques(dossierId);
+    appliquerPropositions(dossierId, propositions, 'Vérification automatique des points numériques lancée');
+    return { propositions, usage: null };
+  }, [appliquerPropositions]);
 
   // Reprend la proposition IA d'un point comme réponse réelle (l'utilisateur reste
   // responsable de la signature "Fait par" / "Supervisé par", inchangée par cet appel).
@@ -451,7 +468,8 @@ export function AppProvider({ children }) {
       signerCycleFait,
       signerCycleSupervise,
       annulerSupervisionCycle,
-      analyserCycle,
+      analyserMission,
+      analyserPointsNumeriques,
       accepterPropositionIA,
       ajouterCollaborateur,
       retirerCollaborateur,

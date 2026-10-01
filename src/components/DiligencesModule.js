@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPlus, Check, ChevronDown, ChevronRight, User, Download, BookOpen, Sparkles, Loader, RotateCcw } from 'lucide-react';
+import { UserPlus, Check, ChevronDown, ChevronRight, User, Download, BookOpen, Sparkles, Loader, RotateCcw, Calculator, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useApp, ROLES_NIVEAU } from '../context/AppContext';
 import { CYCLES_DILIGENCES } from '../utils/diligencesData';
 import { TRAVAUX_PAR_POINT } from '../utils/travauxData';
@@ -16,12 +16,18 @@ const REPONSES = {
 };
 
 export default function DiligencesModule({ dossier }) {
-  const { utilisateurConnecte, utilisateurs, assignerCycle, mettreAJourReponse, signerCycleFait, signerCycleSupervise, annulerSupervisionCycle, analyserCycle, accepterPropositionIA, ajouterHistorique, ROLES } = useApp();
-  const [cycleOuvert, setCycleOuvert] = useState(null);
+  const { utilisateurConnecte, utilisateurs, assignerCycle, mettreAJourReponse, signerCycleFait, signerCycleSupervise, annulerSupervisionCycle, analyserMission, analyserPointsNumeriques, accepterPropositionIA, ajouterHistorique, ROLES } = useApp();
+  const [cyclesOuverts, setCyclesOuverts] = useState([]);
   const [showAssign, setShowAssign] = useState(null);
   const [exporting, setExporting] = useState(false);
-  const [cycleEnAnalyse, setCycleEnAnalyse] = useState(null);
+  const [analyseEnCours, setAnalyseEnCours] = useState(false);
+  const [analyseNumEnCours, setAnalyseNumEnCours] = useState(false);
   const [erreurAnalyse, setErreurAnalyse] = useState('');
+  const [rapportAnalyse, setRapportAnalyse] = useState(null);
+
+  const toggleCycle = (cycleId) => {
+    setCyclesOuverts(prev => prev.includes(cycleId) ? prev.filter(id => id !== cycleId) : [...prev, cycleId]);
+  };
 
   const isChefMission = ROLES_NIVEAU[utilisateurConnecte.role] >= 2;
   const cyclesAssignations = dossier.cyclesAssignations || {};
@@ -56,16 +62,54 @@ export default function DiligencesModule({ dossier }) {
     ajouterHistorique(dossier.id, 'Rapport de diligences exporté (Excel)');
   };
 
-  const handleAnalyser = async (cycleId) => {
+  const missionAutomatisable = CYCLES_DILIGENCES.some(c => c.points.some(p => p.automatisation));
+  const missionNumeriqueDisponible = CYCLES_DILIGENCES.some(c => c.points.some(p => p.automatisation?.type === 'numeric'));
+
+  // Regroupe les propositions par cycle pour le rapport affiché après une analyse, avec le
+  // texte du point (pas juste son id) et une séparation succès / échecs-indéterminés.
+  const construireRapport = (propositions) => {
+    const parCycle = {};
+    propositions.forEach(p => {
+      const cycle = CYCLES_DILIGENCES.find(c => c.id === p.cycleId);
+      if (!parCycle[p.cycleId]) {
+        parCycle[p.cycleId] = { cycleId: p.cycleId, label: cycle?.label || p.cycleId, reussis: [], echecs: [] };
+      }
+      const point = cycle?.points.find(pt => pt.id === p.pointId);
+      const entree = { pointId: p.pointId, texte: point?.texte || p.pointId, justification: p.justification };
+      (p.statut ? parCycle[p.cycleId].reussis : parCycle[p.cycleId].echecs).push(entree);
+    });
+    return Object.values(parCycle);
+  };
+
+  const handleAnalyser = async () => {
     setErreurAnalyse('');
-    setCycleEnAnalyse(cycleId);
+    setAnalyseEnCours(true);
     try {
-      await analyserCycle(dossier.id, cycleId);
+      const { propositions, usage } = await analyserMission(dossier.id);
+      setRapportAnalyse({ cycles: construireRapport(propositions), usage });
     } catch (err) {
       setErreurAnalyse(err.message || "Erreur lors de l'analyse automatique");
     } finally {
-      setCycleEnAnalyse(null);
+      setAnalyseEnCours(false);
     }
+  };
+
+  const handleAnalyserNumerique = async () => {
+    setErreurAnalyse('');
+    setAnalyseNumEnCours(true);
+    try {
+      const { propositions } = await analyserPointsNumeriques(dossier.id);
+      setRapportAnalyse({ cycles: construireRapport(propositions), usage: null });
+    } catch (err) {
+      setErreurAnalyse(err.message || "Erreur lors de la vérification numérique");
+    } finally {
+      setAnalyseNumEnCours(false);
+    }
+  };
+
+  const fermerRapport = () => {
+    setCyclesOuverts(prev => [...new Set([...prev, ...rapportAnalyse.cycles.map(c => c.cycleId)])]);
+    setRapportAnalyse(null);
   };
 
   return (
@@ -77,6 +121,20 @@ export default function DiligencesModule({ dossier }) {
           <StatMini label="Cycles supervisés" valeur={`${cyclesSupervises}/${CYCLES_DILIGENCES.length}`} couleur="#10b981" />
           <StatMini label="Progression" valeur={`${totalPoints > 0 ? Math.round((totalFaits/totalPoints)*100) : 0}%`} couleur="var(--gold)" />
         </div>
+        {missionNumeriqueDisponible && isChefMission && (
+          <button onClick={handleAnalyserNumerique} disabled={analyseNumEnCours} title="Vérification des points numériques uniquement — calcul local, gratuit, sans appel IA"
+            className="btn btn-outline btn-sm" style={{ flexShrink: 0, color: 'var(--navy)', borderColor: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {analyseNumEnCours ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Calculator size={13} />}
+            {analyseNumEnCours ? 'Vérification…' : 'Vérifier les points numériques'}
+          </button>
+        )}
+        {missionAutomatisable && isChefMission && (
+          <button onClick={handleAnalyser} disabled={analyseEnCours} title="Analyse automatique de tous les cycles non supervisés, en un seul passage (appel IA)"
+            className="btn btn-outline btn-sm" style={{ flexShrink: 0, color: 'var(--gold)', borderColor: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {analyseEnCours ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={13} />}
+            {analyseEnCours ? 'Analyse en cours…' : 'Analyser toutes les diligences'}
+          </button>
+        )}
         <button onClick={handleExport} disabled={exporting} className="btn btn-outline btn-sm" style={{ flexShrink: 0, color: 'var(--navy)', borderColor: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6 }}>
           <Download size={13} />{exporting ? 'Export…' : 'Export Excel'}
         </button>
@@ -98,18 +156,16 @@ export default function DiligencesModule({ dossier }) {
           const assigneId = cyclesAssignations[cycle.id];
           const assigneUser = utilisateurs.find(u => u.id === assigneId);
           const cycleData = cyclesReponses[cycle.id] || {};
-          const estOuvert = cycleOuvert === cycle.id;
+          const estOuvert = cyclesOuverts.includes(cycle.id);
           const peutTravailler = peutTravaillerSurCycle(cycle.id);
           const estComplete = prog.fait === prog.total && prog.total > 0;
           const estSupervise = !!cycleData.supervise;
           const faitParUser = utilisateurs.find(u => u.id === cycleData.faitPar);
           const superviseParUser = utilisateurs.find(u => u.id === cycleData.supervise);
-          const estAutomatisable = cycle.points.some(p => p.automatisation);
-          const enAnalyse = cycleEnAnalyse === cycle.id;
 
           return (
             <div key={cycle.id} style={{ border: `1.5px solid ${estSupervise ? '#10b98140' : estComplete ? '#c9a84c40' : 'var(--gray-200)'}`, borderRadius: 10, background: estSupervise ? '#f0fdf4' : 'white', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer' }} onClick={() => setCycleOuvert(estOuvert ? null : cycle.id)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer' }} onClick={() => toggleCycle(cycle.id)}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: estSupervise ? '#10b981' : estComplete ? '#c9a84c' : assigneId ? 'var(--navy-pale)' : 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {estSupervise ? <Check size={13} color="white" /> : estComplete ? <Check size={13} color="var(--navy)" /> : <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{prog.fait}/{prog.total}</span>}
                 </div>
@@ -128,14 +184,6 @@ export default function DiligencesModule({ dossier }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
-                  {estAutomatisable && peutTravailler && !estSupervise && (
-                    <button className="btn btn-outline btn-sm" disabled={enAnalyse} title="Analyse automatique des points marqués IA à partir des documents du cycle"
-                      style={{ fontSize: 11, padding: '4px 10px', color: 'var(--gold)', borderColor: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 6 }}
-                      onClick={() => handleAnalyser(cycle.id)}>
-                      {enAnalyse ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={11} />}
-                      {enAnalyse ? 'Analyse…' : 'Analyser'}
-                    </button>
-                  )}
                   {isChefMission && (
                     <div style={{ position: 'relative' }}>
                       <button className="btn btn-outline btn-sm" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setShowAssign(showAssign === cycle.id ? null : cycle.id)}>
@@ -202,6 +250,72 @@ export default function DiligencesModule({ dossier }) {
             </div>
           );
         })}
+      </div>
+
+      {rapportAnalyse && <RapportAnalyseModal rapport={rapportAnalyse} onFermer={fermerRapport} />}
+    </div>
+  );
+}
+
+function RapportAnalyseModal({ rapport, onFermer }) {
+  const { cycles, usage } = rapport;
+  const totalReussis = cycles.reduce((s, c) => s + c.reussis.length, 0);
+  const totalEchecs = cycles.reduce((s, c) => s + c.echecs.length, 0);
+  const total = totalReussis + totalEchecs;
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onFermer()}>
+      <div className="modal" style={{ maxWidth: 560 }}>
+        <div className="modal-header">
+          <h3>Résultat de l'analyse automatique</h3>
+        </div>
+        <div style={{ padding: '16px 28px', maxHeight: '55vh', overflowY: 'auto' }}>
+          {total === 0 ? (
+            <p style={{ fontSize: 13, color: '#64748b' }}>
+              Aucun point à analyser — soit tous les cycles automatisables sont déjà supervisés, soit aucun document n'a été trouvé.
+            </p>
+          ) : (
+            <>
+              <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+                <strong style={{ color: 'var(--navy)' }}>{totalReussis}</strong> point{totalReussis > 1 ? 's' : ''} déterminé{totalReussis > 1 ? 's' : ''}
+                {totalEchecs > 0 && <> · <strong style={{ color: '#ef4444' }}>{totalEchecs}</strong> en attente ou en erreur</>}
+                {' '}sur {cycles.length} cycle{cycles.length > 1 ? 's' : ''}.
+              </p>
+              {usage && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--off-white)', border: '1px solid var(--gray-200)', borderRadius: 8, marginBottom: 16, fontSize: 11.5, color: '#64748b' }}>
+                  <Calculator size={12} />
+                  <span>
+                    Coût réel de cette analyse : <strong style={{ color: 'var(--navy)' }}>${usage.coutUSD.toFixed(3)}</strong>
+                    {' '}— {usage.nbAppels} appel{usage.nbAppels > 1 ? 's' : ''} IA,
+                    {' '}{usage.inputTokens.toLocaleString('fr-FR')} tokens en entrée,
+                    {' '}{usage.outputTokens.toLocaleString('fr-FR')} en sortie.
+                  </span>
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {cycles.map(c => (
+                  <div key={c.cycleId} style={{ border: '1px solid var(--gray-200)', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: c.echecs.length > 0 ? 8 : 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>{c.label}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11.5 }}>
+                        {c.reussis.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#10b981' }}><CheckCircle2 size={12} /> {c.reussis.length}</span>}
+                        {c.echecs.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#ef4444' }}><AlertTriangle size={12} /> {c.echecs.length}</span>}
+                      </span>
+                    </div>
+                    {c.echecs.map(e => (
+                      <div key={e.pointId} style={{ fontSize: 11.5, color: '#92400e', background: '#fffbeb', borderRadius: 6, padding: '6px 8px', marginTop: 4 }}>
+                        {e.justification}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-primary" onClick={onFermer}>OK</button>
+        </div>
       </div>
     </div>
   );

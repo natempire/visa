@@ -71,6 +71,8 @@ export const api = {
   // IA
   genererNotePDCIA: (nomEntite, sections) =>
     request('POST', '/api/ia/note-pdc', { nomEntite, sections }),
-  analyserDiligences: (dossierId, cycleId) =>
-    request('POST', `/api/diligences-auto/${dossierId}/${cycleId}`),
+  analyserDiligences: (dossierId) =>
+    request('POST', `/api/diligences-auto/${dossierId}`),
+  analyserDiligencesNumeriques: (dossierId) =>
+    request('POST', `/api/diligences-auto/${dossierId}/numerique`),
 };

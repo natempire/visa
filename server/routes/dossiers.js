@@ -113,6 +113,21 @@ function enrichWithCollaborateurs(dossier) {
   return dossier;
 }
 
+// Expert/admin peuvent voir et modifier n'importe quel dossier, comme sur la liste
+// (GET /api/dossiers) — être collaborateur explicite n'est requis que pour senior/assistant.
+// Sans ça, un expert/admin pouvait ouvrir un dossier où il n'est pas explicitement ajouté
+// et voir ses données (via la liste), mais tout enregistrement échouait silencieusement.
+function dossierAccessible(dossierId, userId, userRole) {
+  if (ROLES_NIVEAU[userRole] >= ROLES_NIVEAU.expert) {
+    return queryOne('SELECT * FROM dossiers WHERE id = ?', [dossierId]);
+  }
+  return queryOne(`
+    SELECT d.* FROM dossiers d
+    INNER JOIN collaborateurs_dossier cd ON d.id = cd.dossier_id
+    WHERE d.id = ? AND cd.utilisateur_id = ?
+  `, [dossierId, userId]);
+}
+
 // GET /api/dossiers — dossiers de l'utilisateur connecté
 router.get('/', authentifier, (req, res) => {
   try {
@@ -140,11 +155,7 @@ router.get('/', authentifier, (req, res) => {
 // GET /api/dossiers/:id
 router.get('/:id', authentifier, (req, res) => {
   try {
-    const row = queryOne(`
-      SELECT d.* FROM dossiers d
-      INNER JOIN collaborateurs_dossier cd ON d.id = cd.dossier_id
-      WHERE d.id = ? AND cd.utilisateur_id = ?
-    `, [req.params.id, req.userId]);
+    const row = dossierAccessible(req.params.id, req.userId, req.userRole);
 
     if (!row) return res.status(404).json({ erreur: 'Dossier non trouvé' });
     res.json(enrichWithCollaborateurs(parseDossier(row)));
@@ -211,11 +222,7 @@ router.post('/', authentifier, (req, res) => {
 // PUT /api/dossiers/:id — mise à jour complète d'un dossier
 router.put('/:id', authentifier, (req, res) => {
   try {
-    const dossier = queryOne(`
-      SELECT d.* FROM dossiers d
-      INNER JOIN collaborateurs_dossier cd ON d.id = cd.dossier_id
-      WHERE d.id = ? AND cd.utilisateur_id = ?
-    `, [req.params.id, req.userId]);
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
     if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
 
     const d = req.body;
