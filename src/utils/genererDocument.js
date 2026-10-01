@@ -1,6 +1,7 @@
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
+import { EXPERT_PAR_DEFAUT } from './constants';
 
 // Format number as French currency string
 const formatMontant = (val) => {
@@ -50,7 +51,7 @@ export async function genererLettreMission(dossier) {
     NOM_ENTITE: dossier.nomEntite || '',
     NCC_ENTITE: dossier.nccEntite || '',
     ADRESSE_ENTITE: dossier.adresseEntite || '',
-    NOM_EXPERT: dossier.nomExpert || 'Bamba Souleymane',
+    NOM_EXPERT: dossier.nomExpert || EXPERT_PAR_DEFAUT,
     NOM_ASSISTANT: dossier.nomAssistant || '',
     PLANNING: dossier.planning || '',
     LISTE_DOCUMENTS: dossier.listeDocuments || '',

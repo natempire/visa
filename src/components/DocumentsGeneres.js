@@ -7,6 +7,7 @@ import { fr } from 'date-fns/locale';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { CYCLES_DILIGENCES, DOCUMENTS_REQUIS } from '../utils/diligencesData';
+import { EXPERT_PAR_DEFAUT } from '../utils/constants';
 
 
 const DOCS_CONFIG = [
@@ -47,7 +48,7 @@ async function genererEtSauvegarder(dossier, docConfig, utilisateurs) {
     NCC_ENTITE: dossier.nccEntite || '',
     NCC: dossier.nccEntite || '',
     ADRESSE_ENTITE: dossier.adresseEntite || '',
-    NOM_EXPERT: dossier.nomExpert || 'Bamba Souleymane',
+    NOM_EXPERT: dossier.nomExpert || EXPERT_PAR_DEFAUT,
     NOM_ASSISTANT: dossier.nomAssistant || '',
     PLANNING: planning,
     LISTE_DOCUMENTS: dossier.etapes?.lettre_de_mission?.listeDocuments || dossier.listeDocuments || '',

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { SECTIONS_PDC } from './pdcData';
+import { EXPERT_PAR_DEFAUT } from './constants';
 
 // Helper: get display value from a question response
 function getValeurAffichage(valeur) {
@@ -53,7 +54,7 @@ export async function exportPDCExcel(dossier, pdcData) {
   // Header rows
   sheetData.push(['QUESTIONNAIRE DE PRISE DE CONNAISSANCE GÉNÉRALE', '', '', '', '']);
   sheetData.push(['', 'Mission :', dossier.nomEntite || '', '', '']);
-  sheetData.push(['', 'Intervenant :', dossier.nomExpert || 'Bamba Souleymane', '', '']);
+  sheetData.push(['', 'Intervenant :', dossier.nomExpert || EXPERT_PAR_DEFAUT, '', '']);
   sheetData.push(['', 'Client :', dossier.nomEntite || '', '', '']);
   sheetData.push(['', 'Exercice :', dossier.exercice || '2025', '', '']);
   sheetData.push(['', 'Date :', new Date().toLocaleDateString('fr-FR'), '', '']);
