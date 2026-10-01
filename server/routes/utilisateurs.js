@@ -6,6 +6,12 @@ const { ROLES_NIVEAU } = require('../roles');
 
 const router = express.Router();
 
+const ROLES_VALIDES = Object.keys(ROLES_NIVEAU);
+
+function calculerInitiales(nom) {
+  return nom.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
+}
+
 // GET /api/utilisateurs — liste tous les utilisateurs actifs
 router.get('/', authentifier, (req, res) => {
   try {
@@ -32,7 +38,7 @@ router.post('/', authentifier, async (req, res) => {
     if (!nom || !email || !motDePasse || !role) {
       return res.status(400).json({ erreur: 'Tous les champs sont requis' });
     }
-    if (!['admin', 'expert', 'senior', 'assistant'].includes(role)) {
+    if (!ROLES_VALIDES.includes(role)) {
       return res.status(400).json({ erreur: 'Rôle invalide' });
     }
     // Only an existing admin can grant the admin role — an expert could otherwise
@@ -50,7 +56,7 @@ router.post('/', authentifier, async (req, res) => {
     }
 
     const hash = await bcrypt.hash(motDePasse, 10);
-    const initiales = nom.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
+    const initiales = calculerInitiales(nom);
 
     run(
       'INSERT INTO utilisateurs (nom, email, mot_de_passe, role, initiales) VALUES (?, ?, ?, ?, ?)',
@@ -80,7 +86,7 @@ router.put('/:id', authentifier, async (req, res) => {
     const user = queryOne('SELECT * FROM utilisateurs WHERE id = ?', [userId]);
     if (!user) return res.status(404).json({ erreur: 'Utilisateur non trouvé' });
 
-    if (role && !['admin', 'expert', 'senior', 'assistant'].includes(role)) {
+    if (role && !ROLES_VALIDES.includes(role)) {
       return res.status(400).json({ erreur: 'Rôle invalide' });
     }
     // Only an existing admin can grant or already hold the admin role.
@@ -97,7 +103,7 @@ router.put('/:id', authentifier, async (req, res) => {
     const nouveauNom = nom || user.nom;
     const nouvelEmail = email ? email.toLowerCase().trim() : user.email;
     const nouveauRole = role || user.role;
-    const nouvellesInitiales = nouveauNom.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
+    const nouvellesInitiales = calculerInitiales(nouveauNom);
 
     if (motDePasse) {
       if (motDePasse.length < 6) return res.status(400).json({ erreur: 'Mot de passe trop court' });
