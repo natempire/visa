@@ -29,7 +29,7 @@ export default function DiligencesModule({ dossier }) {
     setCyclesOuverts(prev => prev.includes(cycleId) ? prev.filter(id => id !== cycleId) : [...prev, cycleId]);
   };
 
-  const isChefMission = ROLES_NIVEAU[utilisateurConnecte.role] >= 2;
+  const isChefMission = ROLES_NIVEAU[utilisateurConnecte.role] >= ROLES_NIVEAU.senior;
   const cyclesAssignations = dossier.cyclesAssignations || {};
   const cyclesReponses = dossier.cyclesReponses || {};
   const documentsRecus = dossier.documentsRecus || {};

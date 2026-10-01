@@ -199,7 +199,7 @@ export default function DossierDetail({ dossierId, setPage }) {
                             )}
 
                             {/* Bouton compléter pour diligences */}
-                            {etape.cle === 'diligences' && ROLES_NIVEAU[utilisateurConnecte.role] >= 2 && statut !== 'complete' && statut !== 'valide' && (
+                            {etape.cle === 'diligences' && ROLES_NIVEAU[utilisateurConnecte.role] >= ROLES_NIVEAU.senior && statut !== 'complete' && statut !== 'valide' && (
                               <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={() => marquerComplete(etape.cle)}>
                                 <Check size={13} /> Clôturer les diligences
                               </button>
