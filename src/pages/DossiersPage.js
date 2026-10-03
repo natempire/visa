@@ -149,14 +149,14 @@ export default function DossiersPage({ setPage, setDossierActif }) {
                 <div key={dossier.id} className="dossier-card"
                   onClick={() => { setDossierActif(dossier.id); setPage('dossier-detail'); }}>
                   <div className="dossier-card-header">
-                    <div>
-                      <div className="dossier-nom">{dossier.nomEntite}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="dossier-nom" title={dossier.nomEntite}>{dossier.nomEntite}</div>
                       <div className="dossier-meta">
                         <span><Hash size={11} />{dossier.nccEntite}</span>
                         <span><Calendar size={11} />Ex. {dossier.exercice}</span>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
                       <span className="badge" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
                       {ROLES_NIVEAU[utilisateurConnecte.role] >= ROLES_NIVEAU.senior && (
                         <button

@@ -75,16 +75,16 @@ export default function DossierDetail({ dossierId, setPage }) {
   return (
     <div>
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button className="btn btn-outline btn-sm" onClick={() => setPage('dossiers')}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0, flex: 1 }}>
+          <button className="btn btn-outline btn-sm" style={{ flexShrink: 0 }} onClick={() => setPage('dossiers')}>
             <ArrowLeft size={14} /> Retour
           </button>
-          <div>
-            <h2>{dossier.nomEntite}</h2>
-            <p>NCC : {dossier.nccEntite} · Exercice {dossier.exercice} · Créé le {format(new Date(dossier.dateCreation), 'dd MMM yyyy', { locale: fr })}</p>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={dossier.nomEntite}>{dossier.nomEntite}</h2>
+            <p style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>NCC : {dossier.nccEntite} · Exercice {dossier.exercice} · Créé le {format(new Date(dossier.dateCreation), 'dd MMM yyyy', { locale: fr })}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           {utilisateurConnecte.role !== 'assistant' && (
             <button className="btn btn-outline btn-sm" onClick={startEdit}><Edit2 size={13} /> Modifier les données</button>
           )}
