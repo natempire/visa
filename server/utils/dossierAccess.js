@@ -17,4 +17,15 @@ function dossierAccessible(dossierId, userId, userRole) {
   `, [dossierId, userId]);
 }
 
-module.exports = { dossierAccessible };
+// Middleware Express prêt à l'emploi : bloque (404) si le dossier n'existe pas ou si
+// l'utilisateur authentifié n'y a pas accès. Attend un paramètre de route nommé `dossierId`
+// (fichiers.js, diligencesAuto.js) — pour dossiers.js, dont la route utilise `:id`, utiliser
+// dossierAccessible() directement.
+function verifierAccesDossier(req, res, next) {
+  if (!dossierAccessible(req.params.dossierId, req.userId, req.userRole)) {
+    return res.status(404).json({ erreur: 'Dossier non trouvé' });
+  }
+  next();
+}
+
+module.exports = { dossierAccessible, verifierAccesDossier };

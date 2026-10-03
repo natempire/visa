@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { authentifier } = require('./auth');
 const { queryOne } = require('../db');
-const { dossierAccessible } = require('../utils/dossierAccess');
+const { verifierAccesDossier } = require('../utils/dossierAccess');
 const { requireRole } = require('../utils/requireRole');
 
 const router = express.Router();
@@ -98,19 +98,6 @@ const upload = multer({
     else cb(new Error('Type de fichier non autorisé'));
   }
 });
-
-// Toutes les routes ci-dessous exposent les documents D'UN dossier précis — sans ce contrôle,
-// n'importe quel utilisateur authentifié pouvait lister/télécharger/supprimer les fichiers de
-// n'importe quel dossier (y compris ceux d'autres équipes) en devinant son id, puisque ni
-// resolveDir() ni les routes elles-mêmes ne vérifiaient l'appartenance — seule l'existence du
-// dossier. Même règle d'accès que dossiers.js (dossierAccessible), appliquée ici en middleware
-// pour s'exécuter AVANT tout accès disque, y compris avant que multer n'écrive un fichier reçu.
-function verifierAccesDossier(req, res, next) {
-  if (!dossierAccessible(req.params.dossierId, req.userId, req.userRole)) {
-    return res.status(404).json({ erreur: 'Dossier non trouvé' });
-  }
-  next();
-}
 
 function listFiles(dir) {
   if (!fs.existsSync(dir)) return [];
