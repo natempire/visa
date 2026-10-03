@@ -99,6 +99,28 @@ const upload = multer({
   }
 });
 
+// Bornes larges pour un horodatage Date.now() plausible (2020-01-01 à 2100-01-01). Sert à
+// distinguer un vrai préfixe `${Date.now()}_` (ajouté par multer sur tout fichier uploadé) d'un
+// nom de fichier qui n'en a pas (les documents générés par la route sauvegarder-genere
+// écrivent leur nom tel quel) — sans cette borne, un nom de fichier commençant par des chiffres
+// (ex: "2025_rapport.docx") serait lui aussi, à tort, pris pour un horodatage.
+const HORODATAGE_MIN = 1577836800000;
+const HORODATAGE_MAX = 4102444800000;
+
+// Un nom sur disque est soit `${Date.now()}_${nomOriginal}` (upload via multer), soit le nom
+// original tel quel (document généré par l'app, voir sauvegarder-genere ci-dessous) — ces deux
+// formats coexistent dans les mêmes dossiers. Retourne le nom d'affichage correct dans les deux
+// cas, et la date d'upload déduite de l'horodatage quand il y en a un.
+function analyserNomFichier(filename, dateCreationFichier) {
+  const parts = filename.split('_');
+  const ts = parseInt(parts[0], 10);
+  const estHorodate = /^\d+$/.test(parts[0]) && ts >= HORODATAGE_MIN && ts <= HORODATAGE_MAX;
+  return {
+    nom: estHorodate ? parts.slice(1).join('_') : filename,
+    dateUpload: estHorodate ? new Date(ts).toISOString() : dateCreationFichier,
+  };
+}
+
 function listFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
@@ -106,15 +128,13 @@ function listFiles(dir) {
     .map(filename => {
       const filePath = path.join(dir, filename);
       const stats = fs.statSync(filePath);
-      const parts = filename.split('_');
-      const ts = parseInt(parts[0]);
-      const originalName = parts.slice(1).join('_');
+      const { nom, dateUpload } = analyserNomFichier(filename, stats.birthtime.toISOString());
       return {
         id: filename,
-        nom: originalName,
+        nom,
         taille: stats.size,
-        dateUpload: isNaN(ts) ? stats.birthtime.toISOString() : new Date(ts).toISOString(),
-        type: path.extname(originalName).toLowerCase().replace('.', ''),
+        dateUpload,
+        type: path.extname(nom).toLowerCase().replace('.', ''),
       };
     })
     .sort((a, b) => new Date(b.dateUpload) - new Date(a.dateUpload));
@@ -132,8 +152,7 @@ router.get('/:dossierId/fichier/:contexte(*)/:filename', (req, res, next) => {
     const filePath = safeResolve(dir, req.params.filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ erreur: 'Fichier non trouvé' });
 
-    const parts = req.params.filename.split('_');
-    const originalName = parts.slice(1).join('_');
+    const { nom: originalName } = analyserNomFichier(req.params.filename, null);
     const ext = path.extname(originalName).toLowerCase();
     const inlineTypes = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
@@ -213,15 +232,13 @@ router.get('/:dossierId/:contexte(*)', (req, res, next) => {
 router.post('/:dossierId/:contexte(*)', authentifier, verifierAccesDossier, upload.single('fichier'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ erreur: 'Aucun fichier reçu' });
-    const parts = req.file.filename.split('_');
-    const ts = parseInt(parts[0]);
-    const originalName = parts.slice(1).join('_');
+    const { nom, dateUpload } = analyserNomFichier(req.file.filename, new Date().toISOString());
     res.json({
       id: req.file.filename,
-      nom: originalName,
+      nom,
       taille: req.file.size,
-      dateUpload: new Date(ts).toISOString(),
-      type: path.extname(originalName).toLowerCase().replace('.', ''),
+      dateUpload,
+      type: path.extname(nom).toLowerCase().replace('.', ''),
     });
   } catch (err) {
     console.error(err);
