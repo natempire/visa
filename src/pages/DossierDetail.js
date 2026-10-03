@@ -96,7 +96,7 @@ export default function DossierDetail({ dossierId, setPage }) {
       </div>
 
       <div className="page-body">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24 }}>
+        <div className="grid-sidebar-300" style={{ gap: 24 }}>
 
           {/* Étapes workflow */}
           <div className="card">
@@ -279,7 +279,7 @@ function EtapeGenerique({ etape, dossier, statut, peutFaire, onUpdate, utilisate
             <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               Calendrier détaillé (tableau « Exécution et déroulement de la mission » de la lettre)
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div className="grid-2" style={{ gap: 8 }}>
               <div>
                 <label style={{ fontSize: 10.5, color: '#94a3b8', display: 'block', marginBottom: 3 }}>Prise de connaissance / signature / demande de documents</label>
                 <input className="form-control" style={{ fontSize: 12.5 }} placeholder="Ex : 21/04/2026"
@@ -399,7 +399,7 @@ function ModalEditDossier({ dossier, form, setForm, onClose, dossierId }) {
         </div>
         <div style={{ overflow: 'auto', flex: 1, padding: '20px 28px' }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 14 }}>Chiffres clés (FCFA)</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div className="grid-2" style={{ gap: 12, marginBottom: 20 }}>
             {[['chiffreAffaires', "Chiffre d'affaires"], ['totalBilan', 'Total Bilan'], ['capitauxPropres', 'Capitaux propres'], ['resultatNet', 'Résultat net'], ['totalProduits', 'Total Produits'], ['montantHonoraires', 'Honoraires HT'], ['nombreHeures', 'Volume horaire']].map(([key, label]) => (
               <div className="form-group" style={{ marginBottom: 0 }} key={key}>
                 <label className="form-label">{label}</label>

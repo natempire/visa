@@ -47,7 +47,7 @@ export default function BouclageModule({ dossier, peutFaire }) {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div className="grid-3" style={{ gap: 10, marginBottom: 16 }}>
         <div style={{ padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, textAlign: 'center' }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>{nbOk}</div>
           <div style={{ fontSize: 11, color: '#64748b' }}>Points OK</div>

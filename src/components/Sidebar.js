@@ -1,8 +1,8 @@
 import React from 'react';
-import { LayoutDashboard, FolderOpen, Users, LogOut, Cloud } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Users, LogOut, Cloud, X } from 'lucide-react';
 import { useApp, ROLES_NIVEAU } from '../context/AppContext';
 
-export default function Sidebar({ page, setPage }) {
+export default function Sidebar({ page, setPage, ouvert, onFermer }) {
   const { utilisateurConnecte, deconnexion, ROLES, sauvegarde } = useApp();
 
   const navItems = [
@@ -12,10 +12,15 @@ export default function Sidebar({ page, setPage }) {
   ];
 
   return (
-    <div className="sidebar">
-      <div className="sidebar-logo">
-        <h1>FIDEA</h1>
-        <span>Missions VISA</span>
+    <div className={`sidebar ${ouvert ? 'open' : ''}`}>
+      <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1>FIDEA</h1>
+          <span>Missions VISA</span>
+        </div>
+        <button className="sidebar-close" onClick={onFermer} aria-label="Fermer le menu">
+          <X size={18} />
+        </button>
       </div>
 
       <nav className="sidebar-nav">

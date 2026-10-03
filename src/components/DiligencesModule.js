@@ -115,7 +115,7 @@ export default function DiligencesModule({ dossier }) {
   return (
     <div>
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 12 }}>
+      <div className="grid-3" style={{ gap: 10, marginBottom: 12 }}>
         <StatMini label="Points traités" valeur={`${totalFaits}/${totalPoints}`} couleur="var(--navy)" />
         <StatMini label="Cycles supervisés" valeur={`${cyclesSupervises}/${CYCLES_DILIGENCES.length}`} couleur="#10b981" />
         <StatMini label="Progression" valeur={`${totalPoints > 0 ? Math.round((totalFaits/totalPoints)*100) : 0}%`} couleur="var(--gold)" />
@@ -230,7 +230,7 @@ export default function DiligencesModule({ dossier }) {
                           );
                         })}
                       </div>
-                      <div style={{ borderTop: '1px solid var(--gray-100)', paddingTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="grid-2" style={{ borderTop: '1px solid var(--gray-100)', paddingTop: 14, gap: 12 }}>
                         <SignatureBox label="Fait par" user={faitParUser} date={cycleData.dateFait}
                           peutSigner={!cycleData.faitPar && peutTravailler && estComplete}
                           onSigner={() => signerCycleFait(dossier.id, cycle.id, utilisateurConnecte.id)} />

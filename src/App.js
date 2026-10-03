@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Menu } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -15,6 +16,7 @@ function AppInner() {
   const [page, setPage] = useState(() => sessionStorage.getItem('fidea_page') || 'dashboard');
   const [dossierActif, setDossierActif] = useState(() => sessionStorage.getItem('fidea_dossier') || null);
   const [tokenExpire, setTokenExpire] = useState(false);
+  const [sidebarOuvert, setSidebarOuvert] = useState(false);
 
   useEffect(() => { sessionStorage.setItem('fidea_page', page); }, [page]);
   useEffect(() => {
@@ -38,6 +40,7 @@ function AppInner() {
   const naviguer = (nouvellePage, dossierId = null) => {
     setPage(nouvellePage);
     if (dossierId) setDossierActif(dossierId);
+    setSidebarOuvert(false);
   };
 
   if (!utilisateurConnecte) return (
@@ -85,7 +88,13 @@ function AppInner() {
           Session expirée — reconnexion dans 3 secondes...
         </div>
       )}
-      <Sidebar page={page} setPage={naviguer} />
+      {!sidebarOuvert && (
+        <button className="sidebar-toggle" onClick={() => setSidebarOuvert(true)} aria-label="Ouvrir le menu">
+          <Menu size={18} />
+        </button>
+      )}
+      <div className={`sidebar-overlay ${sidebarOuvert ? 'open' : ''}`} onClick={() => setSidebarOuvert(false)} />
+      <Sidebar page={page} setPage={naviguer} ouvert={sidebarOuvert} onFermer={() => setSidebarOuvert(false)} />
       <main className="main-content">
         <ErrorBoundary key={page}>
           {renderPage()}

@@ -110,6 +110,7 @@ export default function UtilisateursPage() {
         {/* Liste utilisateurs */}
         <div className="card">
           <div className="card-header"><h3>Équipe FIDEA</h3></div>
+          <div className="table-scroll">
           <table className="table">
             <thead>
               <tr>
@@ -161,6 +162,7 @@ export default function UtilisateursPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

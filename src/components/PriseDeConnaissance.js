@@ -150,7 +150,7 @@ export default function PriseDeConnaissance({ dossier, peutFaire }) {
         </div>
       )}
       {/* Stats bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, marginBottom: 16 }}>
+      <div className="grid-3-auto" style={{ gap: 12, marginBottom: 16 }}>
         <div style={{ padding: '10px 14px', background: 'white', border: '1px solid var(--gray-200)', borderRadius: 8 }}>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Champs obligatoires</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

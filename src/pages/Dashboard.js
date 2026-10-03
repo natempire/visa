@@ -92,7 +92,7 @@ export default function Dashboard({ setPage, setDossierActif }) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24 }}>
+        <div className="grid-sidebar-340" style={{ gap: 24 }}>
           {/* Dossiers récents */}
           <div className="card">
             <div className="card-header">
@@ -106,7 +106,7 @@ export default function Dashboard({ setPage, setDossierActif }) {
                 <p>Vous n'avez pas encore de dossiers assignés.</p>
               </div>
             ) : (
-              <table className="table">
+              <div className="table-scroll"><table className="table">
                 <thead>
                   <tr>
                     <th>Entité</th>
@@ -139,7 +139,7 @@ export default function Dashboard({ setPage, setDossierActif }) {
                     );
                   })}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
 

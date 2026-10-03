@@ -79,6 +79,7 @@ export default function NoteSynthese({ dossier, peutFaire }) {
         ouvert={sections.etats}
         onToggle={() => toggleSection('etats')}
       >
+        <div className="table-scroll">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--navy-pale)' }}>
@@ -117,6 +118,7 @@ export default function NoteSynthese({ dossier, peutFaire }) {
             })}
           </tbody>
         </table>
+        </div>
       </SectionCard>
 
       {/* Section 3 — Points de contrôle */}

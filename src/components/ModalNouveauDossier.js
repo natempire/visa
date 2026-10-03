@@ -47,7 +47,7 @@ export default function ModalNouveauDossier({ onClose, onCreer }) {
               <div style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 14 }}>
                 Informations sur l'entité
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="grid-2" style={{ gap: 14 }}>
                 <div className="form-group" style={{ marginBottom: 0, gridColumn: '1/-1' }}>
                   <label className="form-label">Nom de l'entité *</label>
                   <input className="form-control" required value={form.nomEntite}
@@ -82,7 +82,7 @@ export default function ModalNouveauDossier({ onClose, onCreer }) {
               <div style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 14 }}>
                 Chiffres clés (en FCFA)
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="grid-2" style={{ gap: 14 }}>
                 {[
                   ['chiffreAffaires', "Chiffre d'affaires"],
                   ['totalBilan', 'Total Bilan'],
@@ -110,7 +110,7 @@ export default function ModalNouveauDossier({ onClose, onCreer }) {
               <div style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 14 }}>
                 Équipe
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="grid-2" style={{ gap: 14 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Expert-Comptable</label>
                   <input className="form-control" value={form.nomExpert}
