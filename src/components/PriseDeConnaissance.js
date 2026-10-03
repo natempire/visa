@@ -63,13 +63,27 @@ export default function PriseDeConnaissance({ dossier, peutFaire }) {
     autoSaveTimer.current = setTimeout(() => saveToServer(newData), 3000);
   };
 
-  // Force save on unmount
+  // Garde la dernière valeur de pdcData accessible depuis l'effet de démontage ci-dessous
+  // sans en faire une dépendance de cet effet (voir pourquoi juste en-dessous).
+  const pdcDataRef = useRef(pdcData);
+  useEffect(() => { pdcDataRef.current = pdcData; }, [pdcData]);
+
+  // Force save on unmount — dépendances vides exprès : un effet qui dépend de `pdcData`
+  // nettoierait (donc annulerait le timer) à CHAQUE frappe, pas seulement au vrai démontage.
+  // Avant, ce nettoyage annulait le timer sans jamais déclencher la sauvegarde serveur qu'il
+  // remplaçait — si l'utilisateur quittait l'écran dans la fenêtre de 3s du debounce, la
+  // dernière modification n'atteignait jamais le serveur, seulement le localStorage de ce
+  // navigateur (invisible aux autres collaborateurs).
   useEffect(() => {
     return () => {
-      clearTimeout(autoSaveTimer.current);
-      try { localStorage.setItem(LOCAL_KEY(dossier.id), JSON.stringify(pdcData)); } catch (e) {}
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+        const data = pdcDataRef.current;
+        mettreAJourEtape(dossier.id, 'prise_de_connaissance', { pdcReponses: data }).catch(() => {});
+        try { localStorage.setItem(LOCAL_KEY(dossier.id), JSON.stringify(data)); } catch (e) {}
+      }
     };
-  }, [pdcData]);
+  }, []);
 
   // Check if local data differs from server (recovery notice)
   const localHasUnsaved = (() => {
