@@ -4,65 +4,20 @@ const { authentifier } = require('./auth');
 const { ROLES_NIVEAU } = require('../roles');
 const { dossierAccessible } = require('../utils/dossierAccess');
 const { requireRole } = require('../utils/requireRole');
+const {
+  CHAMPS_RESERVES_NON_ASSISTANT,
+  ETAPES_ROLE_MIN,
+  verifierDeverrouillageNotePDC,
+  verifierChampsReserves,
+  verifierRoleEtape,
+} = require('../utils/dossierWriteRules');
+const { DOCUMENTS_REQUIS, CYCLES_DILIGENCES } = require('../../src/utils/diligencesData');
 
 const router = express.Router();
 
-// Mirrors src/context/AppContext.js's ROLES/ETAPES — the UI already gates on these, but
-// nothing enforced them server-side, so any authenticated collaborateur (any role) could
-// call the API directly and edit fields or étapes their role has no business touching.
-const ETAPES_ROLE_MIN = {
-  prise_de_connaissance: 'assistant',
-  lettre_de_mission: 'senior',
-  demande_documents: 'assistant',
-  diligences: 'assistant',
-  note_synthese: 'senior',
-  bouclage: 'expert',
-  attestation: 'expert',
-};
-// Same fields gated behind "Modifier les données" (DossierDetail.js), hidden entirely
-// from the assistant role in the UI.
-const CHAMPS_RESERVES_NON_ASSISTANT = [
-  ['nomGerant', 'nom_gerant'], ['nomAssistant', 'nom_assistant'], ['nomExpert', 'nom_expert'],
-  ['planning', 'planning'], ['listeDocuments', 'liste_documents'],
-  ['chiffreAffaires', 'chiffre_affaires'], ['nombreHeures', 'nombre_heures'],
-  ['montantHonoraires', 'montant_honoraires'], ['totalBilan', 'total_bilan'],
-  ['capitauxPropres', 'capitaux_propres'], ['resultatNet', 'resultat_net'],
-  ['totalProduits', 'total_produits'],
-];
-
-// Returns an error message if `d` (the incoming PUT body) tries to change something the
-// caller's role isn't allowed to touch, given `dossierRow` (the current DB row) — or null
-// if the request is within the caller's rights.
-function verifierAutorisationEcriture(d, dossierRow, userRole) {
-  // Only admin can unlock a note PDC once it's been AI-generated and locked. Locking it
-  // (false -> true) is allowed for anyone who can reach that action client-side.
-  if (d.notePDCVerrouillee === false && !!dossierRow.note_pdc_verrouillee && userRole !== 'admin') {
-    return 'Seul un administrateur peut déverrouiller une note de prise de connaissance déjà générée';
-  }
-
-  if (userRole !== 'assistant') return null; // senior/expert/admin pass the field-level check below
-
-  for (const [jsField, sqlField] of CHAMPS_RESERVES_NON_ASSISTANT) {
-    if (d[jsField] !== undefined && String(d[jsField]) !== String(dossierRow[sqlField] || '')) {
-      return `Modification du champ "${jsField}" réservée aux rôles senior/expert`;
-    }
-  }
-
-  if (d.etapes) {
-    const etapesActuelles = safeJSON(dossierRow.etapes_json, {});
-    for (const cle of Object.keys(d.etapes)) {
-      const roleMin = ETAPES_ROLE_MIN[cle];
-      if (!roleMin) continue;
-      const inchangee = JSON.stringify(d.etapes[cle]) === JSON.stringify(etapesActuelles[cle]);
-      if (inchangee) continue;
-      if (ROLES_NIVEAU[userRole] < ROLES_NIVEAU[roleMin]) {
-        return `Modification de l'étape "${cle}" réservée au rôle ${roleMin} ou supérieur`;
-      }
-    }
-  }
-
-  return null;
-}
+// Ordre réel des étapes du workflow (mêmes clés que ETAPES_ROLE_MIN, dans le même ordre que
+// src/context/AppContext.js's ETAPES) — utilisé pour dériver etapeActuelle côté serveur.
+const ETAPES_ORDRE = Object.keys(ETAPES_ROLE_MIN);
 
 function parseDossier(row) {
   if (!row) return null;
@@ -105,14 +60,6 @@ function safeJSON(str, fallback) {
   try { return JSON.parse(str || '{}'); } catch { return fallback; }
 }
 
-// Préserve une valeur explicitement envoyée par le client — y compris '', 0 ou false — au lieu
-// de la confondre avec "champ non fourni". `d.champ || ancienneValeur` traiterait un champ texte
-// volontairement vidé comme absent et garderait silencieusement l'ancienne valeur en base : la
-// mise à jour réussirait (200) mais le champ resterait inchangé, sans erreur côté utilisateur.
-function champOuDefaut(valeur, defaut) {
-  return valeur !== undefined ? valeur : defaut;
-}
-
 function enrichWithCollaborateurs(dossier) {
   if (!dossier) return null;
   const collabs = query(
@@ -121,6 +68,29 @@ function enrichWithCollaborateurs(dossier) {
   );
   dossier.collaborateurs = collabs.map(c => c.id);
   return dossier;
+}
+
+// Relit le dossier à jour et le renvoie — utilisé après chaque écriture ci-dessous pour que
+// la réponse reflète toujours l'état réellement persisté, pas une reconstruction locale.
+function renvoyerDossierMaj(req, res) {
+  const updated = queryOne('SELECT * FROM dossiers WHERE id = ?', [req.params.id]);
+  res.json(enrichWithCollaborateurs(parseDossier(updated)));
+}
+
+function libelleCycle(cycleId) {
+  return CYCLES_DILIGENCES.find(c => c.id === cycleId)?.label || cycleId;
+}
+
+// Ajoute une entrée à l'historique (plafonné à 50) en utilisant le nom réel de l'utilisateur
+// authentifié — jamais une valeur réclamée par le client, contrairement à l'ancien PUT qui
+// faisait confiance à `utilisateurConnecte?.nom` envoyé depuis le navigateur.
+function appendHistorique(historiqueActuel, action, userId) {
+  const auteurRow = queryOne('SELECT nom FROM utilisateurs WHERE id = ?', [userId]);
+  return [...historiqueActuel, {
+    action,
+    auteur: auteurRow?.nom || 'Inconnu',
+    date: new Date().toISOString(),
+  }].slice(-50);
 }
 
 // GET /api/dossiers — dossiers de l'utilisateur connecté
@@ -173,8 +143,7 @@ router.post('/', authentifier, requireRole('senior'), (req, res) => {
 
     // Init étapes
     const etapesInitiales = {};
-    const ETAPES = ['prise_de_connaissance','lettre_de_mission','demande_documents','diligences','note_synthese','bouclage','attestation'];
-    ETAPES.forEach(cle => {
+    ETAPES_ORDRE.forEach(cle => {
       etapesInitiales[cle] = { statut: 'non_commence', commentaires: [], completePar: null, dateComplete: null };
     });
 
@@ -210,58 +179,359 @@ router.post('/', authentifier, requireRole('senior'), (req, res) => {
   }
 });
 
-// PUT /api/dossiers/:id — mise à jour complète d'un dossier
-router.put('/:id', authentifier, (req, res) => {
+// PATCH /api/dossiers/:id/info — champs "Modifier les données" (DossierDetail.js), jamais
+// cyclesReponses/etapes/etc. Chaque champ ci-dessous ne touche QUE sa propre colonne.
+router.patch('/:id/info', authentifier, (req, res) => {
   try {
     const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
     if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
 
     const d = req.body;
-    const refus = verifierAutorisationEcriture(d, dossier, req.userRole);
+    const refus = verifierChampsReserves(d, dossier, req.userRole);
     if (refus) return res.status(403).json({ erreur: refus });
 
-    run(`UPDATE dossiers SET
-      nom_entite=?, ncc_entite=?, adresse_entite=?, nom_gerant=?,
-      chiffre_affaires=?, nombre_heures=?, montant_honoraires=?,
-      total_bilan=?, capitaux_propres=?, resultat_net=?, total_produits=?,
-      nom_expert=?, nom_assistant=?, planning=?, liste_documents=?,
-      etapes_json=?, cycles_assignations_json=?, cycles_reponses_json=?,
-      documents_recus_json=?, historique_json=?, documents_generes_json=?,
-      documents_requis_perso_json=?, note_pdc=?, note_pdc_verrouillee=?, etape_actuelle=?, statut=?
-      WHERE id=?`,
-    [
-      champOuDefaut(d.nomEntite, dossier.nom_entite),
-      champOuDefaut(d.nccEntite, dossier.ncc_entite),
-      champOuDefaut(d.adresseEntite, dossier.adresse_entite || ''),
-      champOuDefaut(d.nomGerant, dossier.nom_gerant || ''),
-      champOuDefaut(d.chiffreAffaires, dossier.chiffre_affaires || ''),
-      champOuDefaut(d.nombreHeures, dossier.nombre_heures || ''),
-      champOuDefaut(d.montantHonoraires, dossier.montant_honoraires || ''),
-      champOuDefaut(d.totalBilan, dossier.total_bilan || ''),
-      champOuDefaut(d.capitauxPropres, dossier.capitaux_propres || ''),
-      champOuDefaut(d.resultatNet, dossier.resultat_net || ''),
-      champOuDefaut(d.totalProduits, dossier.total_produits || ''),
-      champOuDefaut(d.nomExpert, dossier.nom_expert || ''),
-      champOuDefaut(d.nomAssistant, dossier.nom_assistant || ''),
-      champOuDefaut(d.planning, dossier.planning || ''),
-      champOuDefaut(d.listeDocuments, dossier.liste_documents || ''),
-      JSON.stringify(d.etapes)||dossier.etapes_json,
-      JSON.stringify(d.cyclesAssignations)||dossier.cycles_assignations_json,
-      JSON.stringify(d.cyclesReponses)||dossier.cycles_reponses_json,
-      JSON.stringify(d.documentsRecus)||dossier.documents_recus_json,
-      JSON.stringify(d.historique)||dossier.historique_json,
-      JSON.stringify(d.documentsGeneres)||dossier.documents_generes_json,
-      JSON.stringify(d.documentsRequisPersonnalises)||dossier.documents_requis_perso_json,
-      champOuDefaut(d.notePDC, dossier.note_pdc || ''),
-      d.notePDCVerrouillee !== undefined ? (d.notePDCVerrouillee ? 1 : 0) : (dossier.note_pdc_verrouillee || 0),
-      champOuDefaut(d.etapeActuelle, dossier.etape_actuelle),
-      champOuDefaut(d.statut, dossier.statut),
-      req.params.id
-    ]);
+    const CHAMPS = [
+      ['nomGerant', 'nom_gerant'], ['nomAssistant', 'nom_assistant'],
+      ['planning', 'planning'], ['listeDocuments', 'liste_documents'],
+      ['chiffreAffaires', 'chiffre_affaires'], ['nombreHeures', 'nombre_heures'],
+      ['montantHonoraires', 'montant_honoraires'], ['totalBilan', 'total_bilan'],
+      ['capitauxPropres', 'capitaux_propres'], ['resultatNet', 'resultat_net'],
+      ['totalProduits', 'total_produits'],
+    ];
+    const colonnes = [];
+    const valeurs = [];
+    for (const [jsField, sqlField] of CHAMPS) {
+      if (d[jsField] !== undefined) {
+        colonnes.push(`${sqlField}=?`);
+        valeurs.push(d[jsField]);
+      }
+    }
+    if (colonnes.length === 0) return res.status(400).json({ erreur: 'Aucun champ à mettre à jour' });
 
-    const updated = queryOne('SELECT * FROM dossiers WHERE id = ?', [req.params.id]);
-    res.json(enrichWithCollaborateurs(parseDossier(updated)));
+    run(`UPDATE dossiers SET ${colonnes.join(', ')} WHERE id=?`, [...valeurs, req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
 
+// PATCH /api/dossiers/:id/etapes/:cle — fusionne `donnees` dans etapes[cle] et recalcule
+// etapeActuelle côté serveur (plutôt que de faire confiance à une valeur calculée côté
+// client, comme le faisait l'ancien PUT).
+router.patch('/:id/etapes/:cle', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { donnees, historique: messageHistorique } = req.body;
+    if (!donnees || typeof donnees !== 'object') {
+      return res.status(400).json({ erreur: 'donnees requis' });
+    }
+
+    const etapes = safeJSON(dossier.etapes_json, {});
+    const ancienneEtape = etapes[req.params.cle] || {};
+    const nouvelleEtape = { ...ancienneEtape, ...donnees };
+
+    const refus = verifierRoleEtape(req.params.cle, ancienneEtape, nouvelleEtape, req.userRole);
+    if (refus) return res.status(403).json({ erreur: refus });
+
+    const etapesMaj = { ...etapes, [req.params.cle]: nouvelleEtape };
+
+    let etapeActuelle = 1;
+    ETAPES_ORDRE.forEach((cle, i) => {
+      if (['complete', 'valide'].includes(etapesMaj[cle]?.statut)) {
+        etapeActuelle = Math.min(i + 2, ETAPES_ORDRE.length);
+      }
+    });
+
+    let historiqueMaj = safeJSON(dossier.historique_json, []);
+    if (messageHistorique) historiqueMaj = appendHistorique(historiqueMaj, messageHistorique, req.userId);
+
+    run('UPDATE dossiers SET etapes_json=?, etape_actuelle=?, historique_json=? WHERE id=?',
+      [JSON.stringify(etapesMaj), etapeActuelle, JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/dossiers/:id/cycles/:cycleId/assignation
+router.patch('/:id/cycles/:cycleId/assignation', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { utilisateurId } = req.body;
+    if (!utilisateurId) return res.status(400).json({ erreur: 'utilisateurId requis' });
+
+    const assignations = { ...safeJSON(dossier.cycles_assignations_json, {}), [req.params.cycleId]: utilisateurId };
+
+    run('UPDATE dossiers SET cycles_assignations_json=? WHERE id=?', [JSON.stringify(assignations), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/dossiers/:id/cycles/:cycleId/points/:pointId — fusionne des champs dans un seul
+// point d'un seul cycle. C'est LE point central de ce changement : deux collaborateurs
+// travaillant deux cycles différents (ou deux points différents) ne s'écrasent plus jamais,
+// puisque chaque requête ne lit/réécrit que cette seule clé imbriquée, fraîchement relue en
+// base à chaque fois — jamais une copie mise en cache côté client.
+router.patch('/:id/cycles/:cycleId/points/:pointId', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const donnees = req.body;
+    if (!donnees || typeof donnees !== 'object') {
+      return res.status(400).json({ erreur: 'Corps de requête invalide' });
+    }
+
+    const cyclesReponses = safeJSON(dossier.cycles_reponses_json, {});
+    const cycleActuel = cyclesReponses[req.params.cycleId] || {};
+    const points = cycleActuel.points || {};
+    const pointMaj = { ...(points[req.params.pointId] || {}), ...donnees };
+
+    const cyclesReponsesMaj = {
+      ...cyclesReponses,
+      [req.params.cycleId]: { ...cycleActuel, points: { ...points, [req.params.pointId]: pointMaj } },
+    };
+
+    run('UPDATE dossiers SET cycles_reponses_json=? WHERE id=?', [JSON.stringify(cyclesReponsesMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// POST /api/dossiers/:id/cycles/:cycleId/signature — body { type: 'fait' | 'supervise' }.
+// Utilise req.userId (authentifié) plutôt qu'un id réclamé par le client.
+router.post('/:id/cycles/:cycleId/signature', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { type } = req.body;
+    if (!['fait', 'supervise'].includes(type)) {
+      return res.status(400).json({ erreur: 'type doit être "fait" ou "supervise"' });
+    }
+
+    const cyclesReponses = safeJSON(dossier.cycles_reponses_json, {});
+    const cycleActuel = cyclesReponses[req.params.cycleId] || {};
+    const maintenant = new Date().toISOString();
+    const cycleMaj = type === 'fait'
+      ? { ...cycleActuel, faitPar: req.userId, dateFait: maintenant }
+      : { ...cycleActuel, supervise: req.userId, dateSupervise: maintenant };
+
+    const cyclesReponsesMaj = { ...cyclesReponses, [req.params.cycleId]: cycleMaj };
+    const message = type === 'fait'
+      ? `Cycle "${libelleCycle(req.params.cycleId)}" signé (fait)`
+      : `Cycle "${libelleCycle(req.params.cycleId)}" supervisé`;
+    const historiqueMaj = appendHistorique(safeJSON(dossier.historique_json, []), message, req.userId);
+
+    run('UPDATE dossiers SET cycles_reponses_json=?, historique_json=? WHERE id=?',
+      [JSON.stringify(cyclesReponsesMaj), JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/dossiers/:id/cycles/:cycleId/signature — annule la supervision.
+router.delete('/:id/cycles/:cycleId/signature', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const cyclesReponses = safeJSON(dossier.cycles_reponses_json, {});
+    const cycleMaj = { ...(cyclesReponses[req.params.cycleId] || {}) };
+    delete cycleMaj.supervise;
+    delete cycleMaj.dateSupervise;
+
+    const cyclesReponsesMaj = { ...cyclesReponses, [req.params.cycleId]: cycleMaj };
+    const message = `Supervision du cycle "${libelleCycle(req.params.cycleId)}" annulée`;
+    const historiqueMaj = appendHistorique(safeJSON(dossier.historique_json, []), message, req.userId);
+
+    run('UPDATE dossiers SET cycles_reponses_json=?, historique_json=? WHERE id=?',
+      [JSON.stringify(cyclesReponsesMaj), JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/dossiers/:id/cycles/propositions — applique en un seul appel les propositions
+// IA sur potentiellement plusieurs points/cycles à la fois (un seul read + un seul write).
+router.patch('/:id/cycles/propositions', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { propositions, historique: messageHistorique } = req.body;
+    if (!Array.isArray(propositions)) {
+      return res.status(400).json({ erreur: 'propositions doit être un tableau' });
+    }
+
+    const cyclesReponses = safeJSON(dossier.cycles_reponses_json, {});
+    const date = new Date().toISOString();
+    for (const { pointId, cycleId, statut, justification } of propositions) {
+      const cycleActuel = cyclesReponses[cycleId] || {};
+      const points = cycleActuel.points || {};
+      const pointActuel = points[pointId] || {};
+      cyclesReponses[cycleId] = {
+        ...cycleActuel,
+        points: { ...points, [pointId]: { ...pointActuel, propositionIA: { statut, justification, date } } },
+      };
+    }
+
+    let historiqueMaj = safeJSON(dossier.historique_json, []);
+    if (messageHistorique) historiqueMaj = appendHistorique(historiqueMaj, messageHistorique, req.userId);
+
+    run('UPDATE dossiers SET cycles_reponses_json=?, historique_json=? WHERE id=?',
+      [JSON.stringify(cyclesReponses), JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/dossiers/:id/documents-recus/:docId
+router.patch('/:id/documents-recus/:docId', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { statut } = req.body;
+    if (!statut) return res.status(400).json({ erreur: 'statut requis' });
+
+    const documentsRecus = { ...safeJSON(dossier.documents_recus_json, {}), [req.params.docId]: statut };
+
+    let historiqueMaj = safeJSON(dossier.historique_json, []);
+    if (statut === 'ok') {
+      const personnalises = safeJSON(dossier.documents_requis_perso_json, []);
+      const docNom = DOCUMENTS_REQUIS.find(doc => doc.id === req.params.docId)?.nom
+        || personnalises.find(doc => doc.id === req.params.docId)?.nom
+        || req.params.docId;
+      historiqueMaj = appendHistorique(historiqueMaj, `Document reçu : "${docNom}"`, req.userId);
+    }
+
+    run('UPDATE dossiers SET documents_recus_json=?, historique_json=? WHERE id=?',
+      [JSON.stringify(documentsRecus), JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// POST /api/dossiers/:id/documents-personnalises — ajoute un document requis personnalisé.
+router.post('/:id/documents-personnalises', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { nom } = req.body;
+    if (!nom) return res.status(400).json({ erreur: 'nom requis' });
+
+    const nouveauDoc = { id: `custom_${Date.now()}`, nom };
+    const documentsRequisPersonnalises = [...safeJSON(dossier.documents_requis_perso_json, []), nouveauDoc];
+    const historiqueMaj = appendHistorique(safeJSON(dossier.historique_json, []), `Document ajouté à la liste : "${nom}"`, req.userId);
+
+    run('UPDATE dossiers SET documents_requis_perso_json=?, historique_json=? WHERE id=?',
+      [JSON.stringify(documentsRequisPersonnalises), JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/dossiers/:id/documents-personnalises/:docId
+router.delete('/:id/documents-personnalises/:docId', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const personnalises = safeJSON(dossier.documents_requis_perso_json, []);
+    const doc = personnalises.find(d => d.id === req.params.docId);
+    const documentsRequisPersonnalises = personnalises.filter(d => d.id !== req.params.docId);
+    const documentsRecus = { ...safeJSON(dossier.documents_recus_json, {}) };
+    delete documentsRecus[req.params.docId];
+
+    let historiqueMaj = safeJSON(dossier.historique_json, []);
+    if (doc) historiqueMaj = appendHistorique(historiqueMaj, `Document retiré de la liste : "${doc.nom}"`, req.userId);
+
+    run('UPDATE dossiers SET documents_requis_perso_json=?, documents_recus_json=?, historique_json=? WHERE id=?',
+      [JSON.stringify(documentsRequisPersonnalises), JSON.stringify(documentsRecus), JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/dossiers/:id/note-pdc — body { notePDC?, notePDCVerrouillee? }.
+router.patch('/:id/note-pdc', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { notePDC, notePDCVerrouillee } = req.body;
+    const refus = verifierDeverrouillageNotePDC(notePDCVerrouillee, dossier, req.userRole);
+    if (refus) return res.status(403).json({ erreur: refus });
+
+    const colonnes = [];
+    const valeurs = [];
+    if (notePDC !== undefined) { colonnes.push('note_pdc=?'); valeurs.push(notePDC); }
+    if (notePDCVerrouillee !== undefined) { colonnes.push('note_pdc_verrouillee=?'); valeurs.push(notePDCVerrouillee ? 1 : 0); }
+    if (colonnes.length === 0) return res.status(400).json({ erreur: 'Aucun champ à mettre à jour' });
+
+    run(`UPDATE dossiers SET ${colonnes.join(', ')} WHERE id=?`, [...valeurs, req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/dossiers/:id/documents-generes/:docType — body { genereLe, generePar, nomFichier }.
+router.patch('/:id/documents-generes/:docType', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const documentsGeneres = { ...safeJSON(dossier.documents_generes_json, {}), [req.params.docType]: req.body };
+
+    run('UPDATE dossiers SET documents_generes_json=? WHERE id=?', [JSON.stringify(documentsGeneres), req.params.id]);
+    renvoyerDossierMaj(req, res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+// POST /api/dossiers/:id/historique — ajoute une entrée d'historique autonome (ex: export
+// Excel) sans toucher aucun autre champ.
+router.post('/:id/historique', authentifier, (req, res) => {
+  try {
+    const dossier = dossierAccessible(req.params.id, req.userId, req.userRole);
+    if (!dossier) return res.status(404).json({ erreur: 'Dossier non trouvé' });
+
+    const { action } = req.body;
+    if (!action) return res.status(400).json({ erreur: 'action requis' });
+
+    const historiqueMaj = appendHistorique(safeJSON(dossier.historique_json, []), action, req.userId);
+
+    run('UPDATE dossiers SET historique_json=? WHERE id=?', [JSON.stringify(historiqueMaj), req.params.id]);
+    renvoyerDossierMaj(req, res);
   } catch (err) {
     console.error(err);
     res.status(500).json({ erreur: 'Erreur serveur' });
@@ -294,8 +564,7 @@ router.post('/:id/collaborateurs', authentifier, requireRole('senior'), (req, re
     run('INSERT OR IGNORE INTO collaborateurs_dossier (dossier_id, utilisateur_id) VALUES (?,?)',
       [req.params.id, userId]);
 
-    const updated = queryOne('SELECT * FROM dossiers WHERE id = ?', [req.params.id]);
-    res.json(enrichWithCollaborateurs(parseDossier(updated)));
+    renvoyerDossierMaj(req, res);
 
   } catch (err) {
     console.error(err);

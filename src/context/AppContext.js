@@ -154,6 +154,14 @@ export function AppProvider({ children }) {
     setDossiers(prev => prev.filter(d => d.id !== dossierId));
   };
 
+  // Remplace l'id local d'un dossier par la version autoritaire renvoyée par le serveur après
+  // une écriture ciblée — utilisé par toutes les fonctions ci-dessous pour que l'état local se
+  // resynchronise avec le résultat réel du merge serveur (voir server/routes/dossiers.js),
+  // pas seulement avec la mise à jour optimiste locale.
+  const reconcilierDossier = (dossierId, dossierServeur) => {
+    setDossiers(prev => prev.map(d => d.id === dossierId ? dossierServeur : d));
+  };
+
   const ajouterHistorique = useCallback((dossierId, action) => {
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
@@ -162,15 +170,17 @@ export function AppProvider({ children }) {
         auteur: utilisateurConnecte?.nom || 'Inconnu',
         date: new Date().toISOString(),
       }].slice(-50); // garder les 50 dernières actions
-      const dossierMaj = { ...d, historique };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
-      return dossierMaj;
+      return { ...d, historique };
     }));
+    api.ajouterHistoriqueServeur(dossierId, action)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
-  // Appends one entry to a dossier's historique in-memory (used by updaters below so the
-  // log write rides along with their own single api.mettreAJourDossier call, instead of
-  // firing a second network request via ajouterHistorique).
+  // Fusionne une entrée d'historique dans une copie locale d'un dossier — pour la mise à jour
+  // optimiste (affichage instantané) uniquement ; l'entrée réellement persistée est ajoutée
+  // côté serveur (avec le vrai nom de l'utilisateur authentifié) via le paramètre `historique`
+  // passé à l'endpoint ciblé correspondant.
   const appendHistorique = (dossier, action) => {
     const historique = [...(dossier.historique || []), {
       action,
@@ -180,26 +190,26 @@ export function AppProvider({ children }) {
     return { ...dossier, historique };
   };
 
-  // Central update function — merges local state and persists to server.
-  // Builds the PUT payload from the functional-update callback's own `d` (the latest
-  // pending state), not from the outer `dossiers` closure — two calls fired close together
-  // (e.g. saving the PDC note right after a debounced autosave elsewhere) would otherwise
-  // race: the one built from the older snapshot can land second on the server and silently
-  // revert whatever the other one just wrote.
+  // Escape hatch générique utilisé par 3 call sites avec 3 formes différentes — route vers
+  // l'endpoint ciblé correspondant selon les clés présentes, plutôt que d'envoyer le dossier
+  // entier comme avant.
   const mettreAJourDossierComplet = useCallback(async (dossierId, miseAJour) => {
-    let dossierMaj = null;
-    setDossiers(prev => prev.map(d => {
-      if (d.id !== dossierId) return d;
-      dossierMaj = { ...d, ...miseAJour };
-      return dossierMaj;
-    }));
+    setDossiers(prev => prev.map(d => d.id === dossierId ? { ...d, ...miseAJour } : d));
     setSauvegarde(true);
     try {
-      if (!dossierMaj) return;
-      await api.mettreAJourDossier(dossierId, dossierMaj);
+      let updated;
+      if ('notePDC' in miseAJour || 'notePDCVerrouillee' in miseAJour) {
+        updated = await api.mettreAJourNotePDC(dossierId, miseAJour);
+      } else if ('documentsGeneres' in miseAJour) {
+        for (const docType of Object.keys(miseAJour.documentsGeneres)) {
+          updated = await api.mettreAJourDocumentGenere(dossierId, docType, miseAJour.documentsGeneres[docType]);
+        }
+      } else {
+        updated = await api.mettreAJourInfoDossier(dossierId, miseAJour);
+      }
+      if (updated) reconcilierDossier(dossierId, updated);
     } catch (err) {
-      console.error('Erreur sauvegarde dossier:', err);
-      chargerDonnees();
+      signalerErreurSauvegarde(err);
     } finally {
       setTimeout(() => setSauvegarde(false), 1500);
     }
@@ -211,7 +221,6 @@ export function AppProvider({ children }) {
   // value exactly as before: the internal .catch below attaches a handler before the promise
   // is returned, so an ignored rejection here never produces an "unhandled rejection" warning.
   const mettreAJourEtape = useCallback((dossierId, etapeCle, donnees) => {
-    let dossierMaj = null;
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
       const etapesMaj = {
@@ -225,11 +234,10 @@ export function AppProvider({ children }) {
           etapeActuelle = Math.min(i + 2, ETAPES.length);
         }
       }
-      dossierMaj = { ...d, etapes: etapesMaj, etapeActuelle };
-      return dossierMaj;
+      return { ...d, etapes: etapesMaj, etapeActuelle };
     }));
-    if (!dossierMaj) return Promise.resolve();
-    const sauvegarde = api.mettreAJourDossier(dossierId, dossierMaj);
+    const sauvegarde = api.mettreAJourEtapeServeur(dossierId, etapeCle, donnees)
+      .then(updated => reconcilierDossier(dossierId, updated));
     sauvegarde.catch(signalerErreurSauvegarde);
     return sauvegarde;
   }, []);
@@ -245,9 +253,11 @@ export function AppProvider({ children }) {
           || docId;
         dossierMaj = appendHistorique(dossierMaj, `Document reçu : "${docNom}"`);
       }
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
+    api.mettreAJourDocumentRecu(dossierId, docId, statut)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
   // Liste indicative de documents — extension par dossier, saisie depuis l'étape
@@ -259,9 +269,11 @@ export function AppProvider({ children }) {
       const documentsRequisPersonnalises = [...(d.documentsRequisPersonnalises || []), nouveauDoc];
       let dossierMaj = { ...d, documentsRequisPersonnalises };
       dossierMaj = appendHistorique(dossierMaj, `Document ajouté à la liste : "${nom}"`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
+    api.ajouterDocumentPersonnaliseServeur(dossierId, nom)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
   const retirerDocumentPersonnalise = useCallback((dossierId, docId) => {
@@ -273,37 +285,45 @@ export function AppProvider({ children }) {
       delete documentsRecus[docId];
       let dossierMaj = { ...d, documentsRequisPersonnalises, documentsRecus };
       if (doc) dossierMaj = appendHistorique(dossierMaj, `Document retiré de la liste : "${doc.nom}"`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
+    api.retirerDocumentPersonnaliseServeur(dossierId, docId)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
   const assignerCycle = useCallback((dossierId, cycleId, userId) => {
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
       const cyclesAssignations = { ...(d.cyclesAssignations || {}), [cycleId]: userId };
-      const dossierMaj = { ...d, cyclesAssignations };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
-      return dossierMaj;
+      return { ...d, cyclesAssignations };
     }));
+    api.assignerCycleServeur(dossierId, cycleId, userId)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, []);
 
+  // Point central du correctif "sauvegardes par champ" : ne touche plus que
+  // cyclesReponses[cycleId].points[pointId] côté serveur (voir dossiers.js), relu fraîchement
+  // à chaque requête — deux collaborateurs travaillant deux cycles ou deux points différents
+  // ne s'écrasent plus jamais, même avec des caches locaux différents.
   const mettreAJourReponse = useCallback((dossierId, cycleId, pointId, reponse) => {
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
       const cyclesReponses = d.cyclesReponses || {};
       const cycleData = cyclesReponses[cycleId] || {};
       const points = cycleData.points || {};
-      const dossierMaj = {
+      return {
         ...d,
         cyclesReponses: {
           ...cyclesReponses,
           [cycleId]: { ...cycleData, points: { ...points, [pointId]: { ...(points[pointId] || {}), ...reponse } } }
         }
       };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
-      return dossierMaj;
     }));
+    api.mettreAJourPointCycle(dossierId, cycleId, pointId, reponse)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, []);
 
   const signerCycleFait = useCallback((dossierId, cycleId, userId) => {
@@ -317,9 +337,11 @@ export function AppProvider({ children }) {
         cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, faitPar: userId, dateFait: new Date().toISOString() } }
       };
       dossierMaj = appendHistorique(dossierMaj, `Cycle "${cycleLabel}" signé (fait)`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
+    api.signerCycle(dossierId, cycleId, 'fait')
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
   const signerCycleSupervise = useCallback((dossierId, cycleId, userId) => {
@@ -333,9 +355,11 @@ export function AppProvider({ children }) {
         cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, supervise: userId, dateSupervise: new Date().toISOString() } }
       };
       dossierMaj = appendHistorique(dossierMaj, `Cycle "${cycleLabel}" supervisé`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
+    api.signerCycle(dossierId, cycleId, 'supervise')
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
   // Annule la supervision d'un cycle (senior/expert/admin uniquement, gatée côté UI comme
@@ -351,14 +375,17 @@ export function AppProvider({ children }) {
       delete cycleData.dateSupervise;
       let dossierMaj = { ...d, cyclesReponses: { ...cyclesReponses, [cycleId]: cycleData } };
       dossierMaj = appendHistorique(dossierMaj, `Supervision du cycle "${cycleLabel}" annulée`);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
+    api.annulerSignatureCycle(dossierId, cycleId)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
   // Fusionne des propositions (venant de l'analyse complète ou numérique-seule) dans
   // cyclesReponses, sans jamais toucher `statut` tant que l'utilisateur n'a pas explicitement
-  // accepté une proposition, et fait la seule sauvegarde du dossier pour tout le lot.
+  // accepté une proposition. Un seul appel serveur applique tout le lot (voir
+  // PATCH /cycles/propositions), même si plusieurs cycles sont concernés.
   const appliquerPropositions = useCallback((dossierId, propositions, actionHistorique) => {
     const date = new Date().toISOString();
     setDossiers(prev => prev.map(d => {
@@ -372,9 +399,11 @@ export function AppProvider({ children }) {
       });
       let dossierMaj = { ...d, cyclesReponses };
       dossierMaj = appendHistorique(dossierMaj, actionHistorique);
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
       return dossierMaj;
     }));
+    api.appliquerPropositionsIA(dossierId, propositions, actionHistorique)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, [utilisateurConnecte]);
 
   // Lance l'analyse automatique de TOUTE la mission en un seul appel (checks numériques +
@@ -399,6 +428,7 @@ export function AppProvider({ children }) {
   // Reprend la proposition IA d'un point comme réponse réelle (l'utilisateur reste
   // responsable de la signature "Fait par" / "Supervisé par", inchangée par cet appel).
   const accepterPropositionIA = useCallback((dossierId, cycleId, pointId) => {
+    let donneesEnvoyees = null;
     setDossiers(prev => prev.map(d => {
       if (d.id !== dossierId) return d;
       const cyclesReponses = d.cyclesReponses || {};
@@ -407,14 +437,17 @@ export function AppProvider({ children }) {
       const point = points[pointId] || {};
       const proposition = point.propositionIA;
       if (!proposition) return d;
-      const pointMaj = { ...point, statut: proposition.statut, commentaire: proposition.justification, proposeParIA: true };
-      const dossierMaj = {
+      donneesEnvoyees = { statut: proposition.statut, commentaire: proposition.justification, proposeParIA: true };
+      const pointMaj = { ...point, ...donneesEnvoyees };
+      return {
         ...d,
         cyclesReponses: { ...cyclesReponses, [cycleId]: { ...cycleData, points: { ...points, [pointId]: pointMaj } } }
       };
-      api.mettreAJourDossier(dossierId, dossierMaj).catch(signalerErreurSauvegarde);
-      return dossierMaj;
     }));
+    if (!donneesEnvoyees) return;
+    api.mettreAJourPointCycle(dossierId, cycleId, pointId, donneesEnvoyees)
+      .then(updated => reconcilierDossier(dossierId, updated))
+      .catch(signalerErreurSauvegarde);
   }, []);
 
   const ajouterCollaborateur = useCallback(async (dossierId, userId) => {

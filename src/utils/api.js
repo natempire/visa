@@ -44,12 +44,41 @@ export const api = {
   getDossiers: () => request('GET', '/api/dossiers'),
   getDossier: (id) => request('GET', `/api/dossiers/${id}`),
   creerDossier: (data) => request('POST', '/api/dossiers', data),
-  mettreAJourDossier: (id, data) => request('PUT', `/api/dossiers/${id}`, data),
   supprimerDossier: (id) => request('DELETE', `/api/dossiers/${id}`),
   ajouterCollaborateur: (dossierId, userId) =>
     request('POST', `/api/dossiers/${dossierId}/collaborateurs`, { userId }),
   retirerCollaborateur: (dossierId, userId) =>
     request('DELETE', `/api/dossiers/${dossierId}/collaborateurs/${userId}`),
+
+  // Dossiers — écritures ciblées par champ/section (remplace l'ancien PUT pleine-page, qui
+  // pouvait écraser silencieusement le travail d'un autre collaborateur sur un champ non
+  // touché par l'appelant — voir AppContext.js pour le détail de chaque fonction).
+  mettreAJourInfoDossier: (dossierId, donnees) =>
+    request('PATCH', `/api/dossiers/${dossierId}/info`, donnees),
+  mettreAJourEtapeServeur: (dossierId, etapeCle, donnees, historique) =>
+    request('PATCH', `/api/dossiers/${dossierId}/etapes/${etapeCle}`, { donnees, historique }),
+  assignerCycleServeur: (dossierId, cycleId, utilisateurId) =>
+    request('PATCH', `/api/dossiers/${dossierId}/cycles/${cycleId}/assignation`, { utilisateurId }),
+  mettreAJourPointCycle: (dossierId, cycleId, pointId, donnees) =>
+    request('PATCH', `/api/dossiers/${dossierId}/cycles/${cycleId}/points/${pointId}`, donnees),
+  signerCycle: (dossierId, cycleId, type) =>
+    request('POST', `/api/dossiers/${dossierId}/cycles/${cycleId}/signature`, { type }),
+  annulerSignatureCycle: (dossierId, cycleId) =>
+    request('DELETE', `/api/dossiers/${dossierId}/cycles/${cycleId}/signature`),
+  appliquerPropositionsIA: (dossierId, propositions, historique) =>
+    request('PATCH', `/api/dossiers/${dossierId}/cycles/propositions`, { propositions, historique }),
+  mettreAJourDocumentRecu: (dossierId, docId, statut) =>
+    request('PATCH', `/api/dossiers/${dossierId}/documents-recus/${docId}`, { statut }),
+  ajouterDocumentPersonnaliseServeur: (dossierId, nom) =>
+    request('POST', `/api/dossiers/${dossierId}/documents-personnalises`, { nom }),
+  retirerDocumentPersonnaliseServeur: (dossierId, docId) =>
+    request('DELETE', `/api/dossiers/${dossierId}/documents-personnalises/${docId}`),
+  mettreAJourNotePDC: (dossierId, donnees) =>
+    request('PATCH', `/api/dossiers/${dossierId}/note-pdc`, donnees),
+  mettreAJourDocumentGenere: (dossierId, docType, donnees) =>
+    request('PATCH', `/api/dossiers/${dossierId}/documents-generes/${docType}`, donnees),
+  ajouterHistoriqueServeur: (dossierId, action) =>
+    request('POST', `/api/dossiers/${dossierId}/historique`, { action }),
 
   // Fichiers — contexte: 'prise_de_connaissance', 'diligences/Clients', 'documents_generes'
   getFichiers: (dossierId, contexte) =>
