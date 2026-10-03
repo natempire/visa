@@ -97,6 +97,13 @@ function soldesOuvertureCloture(fichiersExcel) {
   if (balancesParsees.length === 1) {
     return { statut: null, justification: `Un seul fichier de balance exploitable (${balancesParsees[0].nom}). Le fichier de la balance N-1 est nécessaire pour vérifier la concordance des soldes — merci de l'ajouter.` };
   }
+  // On ne devine pas lesquels comparer parmi 3+ fichiers (doublons, N-2 en plus de N et N-1,
+  // etc.) — comparer silencieusement seulement les deux premiers risquerait de choisir la
+  // mauvaise paire sans que personne ne s'en aperçoive.
+  if (balancesParsees.length > 2) {
+    const liste = balancesParsees.map(b => `"${b.nom}"`).join(', ');
+    return { statut: null, justification: `${balancesParsees.length} fichiers de balance exploitables trouvés (${liste}) — impossible de déterminer automatiquement lesquels comparer. Merci de ne garder que les balances N et N-1 dans ce cycle.` };
+  }
 
   const [a, b] = balancesParsees;
   const { total, ecarts } = comparerSoldes(a.comptes, b.comptes);
