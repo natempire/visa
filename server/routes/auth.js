@@ -108,14 +108,23 @@ function formatUser(u) {
   };
 }
 
+// Revérifie le statut et le rôle actuels en base à chaque requête, plutôt que de faire
+// confiance au contenu du jeton (potentiellement périmé jusqu'à 30 jours, la durée de vie
+// d'un jeton de session). Sans ça, désactiver un utilisateur ou lui retirer un rôle ne
+// révoquait rien tant que son jeton n'avait pas naturellement expiré.
 function authentifier(req, res, next) {
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ erreur: 'Non authentifié' });
   const token = header.replace('Bearer ', '');
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = Number(decoded.id);
-    req.userRole = decoded.role;
+    const userId = Number(decoded.id);
+    const utilisateur = queryOne('SELECT role, actif FROM utilisateurs WHERE id = ?', [userId]);
+    if (!utilisateur || !utilisateur.actif) {
+      return res.status(401).json({ erreur: 'Compte désactivé ou introuvable' });
+    }
+    req.userId = userId;
+    req.userRole = utilisateur.role;
     next();
   } catch {
     res.status(401).json({ erreur: 'Token invalide ou expiré' });
