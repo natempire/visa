@@ -130,10 +130,14 @@ async function initSchema() {
 
   db.run(`
     INSERT OR IGNORE INTO utilisateurs (nom, email, mot_de_passe, role, initiales) VALUES
-    ('Bamba Souleymane', 'bamba@fidea.ci', '${motDePasseExpert}', 'expert', 'BS'),
-    ('Koné Adjoua', 'kone@fidea.ci', '${motDePasseSenior}', 'senior', 'KA'),
-    ('Diallo Mamadou', 'diallo@fidea.ci', '${motDePasseAssistant}', 'assistant', 'DM');
-  `);
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?);
+  `, [
+    'Bamba Souleymane', 'bamba@fidea.ci', motDePasseExpert, 'expert', 'BS',
+    'Koné Adjoua', 'kone@fidea.ci', motDePasseSenior, 'senior', 'KA',
+    'Diallo Mamadou', 'diallo@fidea.ci', motDePasseAssistant, 'assistant', 'DM',
+  ]);
 
   saveDb();
   console.log('Base de données initialisée avec les utilisateurs par défaut.');

@@ -84,7 +84,7 @@ router.post('/note-pdc', authentifier, notePdcLimiter, async (req, res) => {
     res.json({ texte });
   } catch (err) {
     console.error('Erreur génération note IA:', err);
-    res.status(500).json({ erreur: err.message || 'Erreur lors de la génération de la note' });
+    res.status(500).json({ erreur: 'Erreur lors de la génération de la note' });
   }
 });
 

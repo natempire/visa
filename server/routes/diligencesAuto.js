@@ -266,7 +266,7 @@ router.post('/:dossierId', authentifier, verifierAccesDossier, requireRole('assi
     res.json({ propositions, usage });
   } catch (err) {
     console.error('Erreur analyse diligences:', err);
-    res.status(500).json({ erreur: err.message || 'Erreur serveur' });
+    res.status(500).json({ erreur: 'Erreur serveur' });
   }
 });
 
@@ -283,7 +283,7 @@ router.post('/:dossierId/numerique', authentifier, verifierAccesDossier, require
     res.json({ propositions });
   } catch (err) {
     console.error('Erreur analyse numérique diligences:', err);
-    res.status(500).json({ erreur: err.message || 'Erreur serveur' });
+    res.status(500).json({ erreur: 'Erreur serveur' });
   }
 });
 
