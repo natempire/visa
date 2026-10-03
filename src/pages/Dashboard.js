@@ -170,9 +170,10 @@ export default function Dashboard({ setPage, setDossierActif }) {
                         <Activity size={12} color="var(--navy)" />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: '#1e293b', fontWeight: 500 }}
+                        <div style={{ fontSize: 12, color: '#1e293b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                           onClick={() => { setDossierActif(act.dossier.id); setPage('dossier-detail'); }}
                           className="hoverable"
+                          title={act.dossier.nomEntite}
                         >
                           {act.dossier.nomEntite}
                         </div>

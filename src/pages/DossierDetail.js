@@ -446,9 +446,9 @@ function EquipeCard({ dossier }) {
           if (!u) return null;
           return (
             <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
-              <div className="avatar" style={{ width: 28, height: 28, fontSize: 10 }}>{u.initiales}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 500 }}>{u.nom}</div>
+              <div className="avatar" style={{ width: 28, height: 28, fontSize: 10, flexShrink: 0 }}>{u.initiales}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.nom}>{u.nom}</div>
                 <div style={{ fontSize: 11, color: '#94a3b8' }}>{ROLES[u.role]?.label}</div>
               </div>
               {uid === utilisateurConnecte?.id
