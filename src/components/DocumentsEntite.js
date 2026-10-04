@@ -230,10 +230,10 @@ export default function DocumentsEntite({ dossier }) {
           if (apercu?.blobUrl) URL.revokeObjectURL(apercu.blobUrl);
           setApercu(null);
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', background: 'rgba(0,0,0,0.5)' }}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 20px', background: 'rgba(0,0,0,0.5)' }}
             onClick={e => e.stopPropagation()}>
-            <span style={{ color: 'white', fontSize: 14, fontWeight: 500 }}>{apercu.nom}</span>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span style={{ color: 'white', fontSize: 14, fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{apercu.nom}</span>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
               <a href={apercu.url} download={apercu.nom} style={{ color: '#94a3b8', display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
                 <Download size={16} />
               </a>
