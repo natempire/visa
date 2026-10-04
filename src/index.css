@@ -32,6 +32,7 @@ body {
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 /* Scrollbar */
@@ -187,6 +188,9 @@ body {
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
+  /* Grid/flex items default to min-width:auto, so a wide child (e.g. a table) forces this
+     card — and everything up to the page — wider than the viewport unless overridden. */
+  min-width: 0;
 }
 
 .card-header {
@@ -614,6 +618,11 @@ select.form-control { cursor: pointer; }
 
 .table-scroll { overflow-x: auto; }
 
+/* Header rows that pair a title with a right-side widget (buttons, progress bars, badges)
+   all use justify-content:space-between with no wrap — on a narrow screen a wide right-side
+   widget just overflows the viewport instead of dropping to its own line. */
+.card-header, .etape-header { flex-wrap: wrap; row-gap: 8px; }
+
 /* Mobile sidebar drawer */
 .sidebar-toggle {
   display: none;
@@ -662,7 +671,10 @@ select.form-control { cursor: pointer; }
 }
 
 @media (max-width: 640px) {
-  .page-header { flex-wrap: wrap; gap: 12px; padding: 16px 20px 16px 64px; }
+  /* flex-direction:column guarantees the two header halves stack full-width rather than
+     relying on flex-wrap's width math, which left a gap where a wide right-side block
+     (e.g. DossierDetail's edit button + progress) still overflowed instead of wrapping. */
+  .page-header { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 20px 16px 64px; }
   .page-body { padding: 20px; }
   .grid-2, .grid-3, .grid-3-auto { grid-template-columns: 1fr; }
 }
