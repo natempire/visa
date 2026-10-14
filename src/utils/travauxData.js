@@ -34,11 +34,12 @@ export const TRAVAUX_PAR_POINT = {
 
   // Stocks
   st_1: "Inventaire physique :\n• Obtenir le PV d'inventaire signé\n• Vérifier la date (doit être proche du 31/12/N)\n• Vérifier la présence d'un comité d'inventaire\n• Contrôler les procédures d'inventaire (instructions écrites)",
-  st_2: "Existence d'un état valorisé et concordance :\n• Obtenir l'état détaillé des stocks (quantités + valeurs)\n• Vérifier la cohérence avec l'inventaire physique\n• Rapprocher : Stock inventaire vs Balance générale vs Bilan",
-  st_3: "Méthode d'évaluation (CUMP/FIFO) :\n• Identifier la méthode utilisée : CUMP, FIFO (PEPS)\n• Recalculer un échantillon : Vérifier coût unitaire, Cohérence des entrées/sorties\n• Vérifier conformité avec SYSCOHADA",
-  st_4: "Permanence des méthodes :\n• Comparer méthode N vs N-1\n• Identifier tout changement\n• Vérifier justification et mention en annexe",
-  st_5: "Dépréciation des stocks :\n• Identifier stocks obsolètes, à rotation lente\n• Vérifier calcul des provisions\n• Vérifier cohérence avec historique de vente",
-  st_6: "Test de cohérence globale (marge/coefficient) :\n• Calculer : SI + Achats – SF = Coût d'achat des ventes\n• Calculer le coefficient multiplicateur = CA TTC / Coût des ventes\n• Comparer avec N-1 et N-2\n• Analyser les écarts significatifs",
+  st_2: "Existence d'un état valorisé :\n• Obtenir l'état détaillé des stocks inventoriés à la clôture (quantités + valeurs)\n• Vérifier la cohérence avec l'inventaire physique",
+  st_3: "Concordance avec les états financiers :\n• Rapprocher : Stock inventorié vs Balance générale vs Bilan\n• Identifier et analyser les écarts",
+  st_4: "Méthode d'évaluation (CUMP/FIFO) :\n• Identifier la méthode utilisée : CUMP, FIFO (PEPS)\n• Recalculer un échantillon : Vérifier coût unitaire, Cohérence des entrées/sorties\n• Vérifier conformité avec SYSCOHADA",
+  st_5: "Permanence des méthodes :\n• Comparer méthode N vs N-1\n• Identifier tout changement\n• Vérifier justification et mention en annexe",
+  st_6: "Dépréciation des stocks :\n• Identifier stocks obsolètes, à rotation lente\n• Vérifier calcul des provisions\n• Vérifier cohérence avec historique de vente",
+  st_7: "Test de cohérence globale (marge/coefficient) :\n• Calculer : SI + Achats – SF = Coût d'achat des ventes\n• Coefficient multiplicateur = CA TTC / Coût d'achat des ventes (moyenne des 2 exercices précédents)\n• Coût d'achat des ventes x coefficient ≈ CA TTC ?\n• Analyser les écarts significatifs",
 
   // Clients
   cl_1: "Existence d'une balance auxiliaire clients :\n• Obtenir la balance auxiliaire clients (détaillée)\n• Vérifier : Présence des informations clés (nom client, solde, ancienneté)\n• Contrôler le total de la balance auxiliaire",
@@ -93,12 +94,14 @@ export const TRAVAUX_PAR_POINT = {
   ea_1: "Informations obligatoires de l'annexe :\n• Méthodes d'évaluation (annexe 1/28 p.20)\n• Produits HAO et transferts de charges (annexe 9/28)\n• Charges HAO (annexe 10/28)\n• TVA facturée et récupérable (annexe 12/28)\n• Répartition du capital (annexe 12/28)",
   ea_2: "Informations significatives :\n• Subvention d'investissement et provisions réglementées (annexe 14/28)\n• Comptes courants associés (annexe 16/28)\n• Rémunérations des organes de direction (annexe 17/28)",
   ea_3: "Structure des états financiers :\n• Vérifier conformité avec les dispositions légales\n• Système normal, allégé ou minimal de trésorerie",
-  tr_1: "Rapprochement bancaire :\n• Obtenir les relevés bancaires de décembre N\n• Effectuer ou vérifier le rapprochement bancaire\n• Identifier les écarts : chèques non encaissés, virements en attente\n• Vérifier la concordance avec le grand livre (compte 52x)",
-  tr_2: "Exhaustivité des comptes bancaires :\n• Comparer les comptes ouverts avec la fiche d'identification (page 5)\n• Vérifier que tous les comptes sont déclarés et comptabilisés\n• Identifier tout compte non déclaré",
-  tr_3: "Chèques et virements en attente :\n• Lister les chèques émis non encaissés au 31/12/N\n• Vérifier les virements en transit\n• S'assurer de leur correcte comptabilisation",
-  tr_4: "Inventaire de caisse :\n• Obtenir le PV d'inventaire de caisse signé au 31/12/N\n• Rapprocher avec le solde du compte 571\n• Vérifier la présence de signataires désignés",
-  tr_5: "Analyse de la variation de trésorerie :\n• Comparer trésorerie N vs N-1\n• Identifier les flux significatifs\n• Vérifier la cohérence avec le TAFIRE et l'activité",
-  tr_6: "Soldes anormaux :\n• Vérifier l'absence de soldes créditeurs de caisse\n• Analyser tout solde anormal\n• Obtenir justification si nécessaire",
+  tr_1: "Inventaire de caisse :\n• Obtenir le PV d'inventaire de caisse signé au 31/12/N\n• Rapprocher avec le solde du compte 571\n• Vérifier la présence de signataires désignés",
+  tr_2: "Virements internes :\n• Vérifier dans la balance que les comptes 58 (virements de fonds, autres virements internes) sont soldés à la clôture\n• Analyser et justifier tout solde résiduel",
+  tr_3: "Comptes bancaires :\n• Comparer les comptes ouverts avec la fiche d'identification (page 5)\n• Vérifier que tous les comptes appartiennent à l'entreprise, sont déclarés et comptabilisés\n• Identifier tout compte non déclaré",
+  tr_4: "Soldes anormaux :\n• Vérifier l'absence de soldes créditeurs de caisse\n• Analyser tout solde anormal\n• Obtenir justification si nécessaire",
+  tr_5: "Rapprochement bancaire :\n• Obtenir les relevés bancaires de décembre N\n• Obtenir ou effectuer l'état de rapprochement de chaque compte bancaire\n• Vérifier la concordance avec le grand livre (compte 52x)",
+  tr_6: "Suspens anciens :\n• Lister les suspens de plus de 3 mois (chèques non encaissés, virements en attente)\n• Obtenir les explications pertinentes\n• S'assurer de leur correcte comptabilisation",
+  tr_7: "Trésorerie passive :\n• Identifier les comptes 56 (crédits de trésorerie, escompte, concours bancaires courants) et les banques créditrices\n• Vérifier leur report à la trésorerie passive du bilan\n• S'assurer qu'aucun solde créditeur de banque n'est compensé avec la trésorerie actif",
+  tr_8: "Engagements hors bilan :\n• Vérifier que le tableau des engagements hors bilan (page 23, annexe 4/28) est rempli lorsque l'entreprise présente des engagements (cautions, avals, hypothèques, crédit-bail...)",
 
   ea_4: "Cohérence comptes/tableaux annexes :\n• T1&T2 (annexe 18&19/28)\n• T4 provisions (annexe 21/28)\n• T9 données sur 5 exercices (annexe 26/28)\n• T10 affectation résultat (annexe 27/28)\n• T11 effectifs (annexe 28/28)",
 };

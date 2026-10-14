@@ -1,6 +1,7 @@
 // Administration d'une instance en ligne de commande (le service doit être arrêté) :
 //   node gerer.js creer-admin --email x@cabinet.ci --nom "Prénom Nom"
 //   node gerer.js mot-de-passe --email x@cabinet.ci
+//   node gerer.js migrer-gudef    (réponses Stocks/Trésorerie -> points du GUDEF, oct. 2026)
 // Le mot de passe est tapé au clavier (non affiché), jamais passé en argument : il finirait
 // sinon dans l'historique du shell et la liste des processus.
 //
@@ -12,7 +13,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env'), 
 const http = require('http');
 const readline = require('readline');
 const bcrypt = require('bcryptjs');
-const { getDb, queryOne, run } = require('./db');
+const { getDb, query, queryOne, run } = require('./db');
+const { migrerCyclesReponses } = require('./migrations/gudefStocksTresorerie');
 const { DATA_DIR } = require('./config');
 
 const LONGUEUR_MIN = 10;
@@ -61,20 +63,39 @@ function initiales(nom) {
   return nom.split(/\s+/).filter(Boolean).map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
 
+async function migrerGudef() {
+  const date = new Date().toISOString();
+  const dossiers = query('SELECT id, nom_entite, cycles_reponses_json FROM dossiers');
+  let nb = 0;
+  for (const d of dossiers) {
+    let cycles;
+    try { cycles = JSON.parse(d.cycles_reponses_json || '{}'); } catch { continue; }
+    const migre = migrerCyclesReponses(cycles, date);
+    if (!migre) continue;
+    run('UPDATE dossiers SET cycles_reponses_json = ? WHERE id = ?', [JSON.stringify(migre), d.id]);
+    console.log(`  ${d.nom_entite} (${d.id})`);
+    nb++;
+  }
+  console.log(`${nb} dossier(s) migré(s) sur ${dossiers.length}.`);
+}
+
 async function main() {
   const a = arguments_(process.argv.slice(2));
-  if (!['creer-admin', 'mot-de-passe'].includes(a.commande) || !a.email) {
+  const motDePasse = ['creer-admin', 'mot-de-passe'].includes(a.commande);
+  if (!(motDePasse && a.email) && a.commande !== 'migrer-gudef') {
     console.log('Usage :\n  node gerer.js creer-admin --email x@cabinet.ci --nom "Prénom Nom"\n'
-      + '  node gerer.js mot-de-passe --email x@cabinet.ci');
+      + '  node gerer.js mot-de-passe --email x@cabinet.ci\n'
+      + '  node gerer.js migrer-gudef');
     process.exitCode = 2;
     return;
   }
-  if (!process.stdin.isTTY) throw new Error('Lancez cette commande dans un terminal (mot de passe tapé au clavier).');
+  if (motDePasse && !process.stdin.isTTY) throw new Error('Lancez cette commande dans un terminal (mot de passe tapé au clavier).');
   if (await serveurActif()) {
     throw new Error(`Le serveur de cette instance tourne (port ${process.env.PORT || 3001}) : arrêtez-le d'abord.`);
   }
   console.log(`Instance : ${DATA_DIR}`);
   await getDb();
+  if (a.commande === 'migrer-gudef') return migrerGudef();
   const email = a.email.toLowerCase().trim();
   const existant = queryOne('SELECT id, nom, actif FROM utilisateurs WHERE email = ?', [email]);
 

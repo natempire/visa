@@ -23,9 +23,12 @@ function parserBalance(buffer) {
 
   let ligneEntete = -1;
   for (let i = 0; i < Math.min(lignes.length, 15); i++) {
+    // Une ligne qui commence par un numéro de compte est une ligne de données, même si son
+    // libellé contient "compte" (ex. "104000 COMPTE EXPLOITANT").
+    if (/^\d/.test(String(lignes[i][0] || '').trim())) continue;
     if (lignes[i].some(c => normaliser(c).includes('compte'))) { ligneEntete = i; break; }
   }
-  if (ligneEntete === -1) return null;
+  if (ligneEntete === -1) return parserBalanceSansEntete(lignes);
 
   const ligneAvant = lignes[ligneEntete - 1] || [];
   const ligneActuelle = lignes[ligneEntete] || [];
@@ -59,6 +62,27 @@ function parserBalance(buffer) {
   return Object.keys(comptes).length > 0 ? comptes : null;
 }
 
+// Export "six colonnes" sans ligne d'en-tête (ex. Sage) : compte, libellé, ouverture D/C,
+// mouvements D/C, clôture D/C. Faute de titres, on ne retient cette lecture que si elle se
+// vérifie arithmétiquement (ouverture + mouvements = clôture) sur au moins 90 % des comptes.
+function parserBalanceSansEntete(lignes) {
+  const comptes = {};
+  let lues = 0;
+  let coherentes = 0;
+  for (const ligne of lignes) {
+    const compte = String(ligne[0] || '').trim();
+    if (!/^\d{2,}$/.test(compte) || ligne.length < 8) continue;
+    const [ouvD, ouvC, mvtD, mvtC, clotD, clotC] = ligne.slice(2, 8).map(nombre);
+    const soldeOuverture = ouvD - ouvC;
+    const soldeCloture = clotD - clotC;
+    lues++;
+    if (Math.abs(soldeOuverture + mvtD - mvtC - soldeCloture) <= TOLERANCE) coherentes++;
+    comptes[compte] = { soldeOuverture, soldeCloture };
+  }
+  if (lues < 3 || coherentes / lues < 0.9) return null;
+  return comptes;
+}
+
 // Compare, pour deux balances, la clôture de l'une à l'ouverture de l'autre (on ne sait pas
 // à l'avance laquelle est N et laquelle est N-1), et retient le sens le plus cohérent.
 function comparerSoldes(balanceA, balanceB) {
@@ -74,14 +98,13 @@ function comparerSoldes(balanceA, balanceB) {
   const sensBA = compare(balanceB, balanceA);
   // Le sens correct (quel fichier est N-1 vs N) est celui qui produit le moins d'écarts :
   // dans le mauvais sens, on compare des colonnes sans rapport et les écarts explosent.
-  return sensAB.ecarts.length <= sensBA.ecarts.length ? sensAB : sensBA;
+  // `balanceN` indique laquelle des deux est la balance N (celle dont on lit l'ouverture).
+  return sensAB.ecarts.length <= sensBA.ecarts.length
+    ? { ...sensAB, balanceN: 'B' }
+    : { ...sensBA, balanceN: 'A' };
 }
 
-function soldesOuvertureCloture(fichiersExcel) {
-  if (fichiersExcel.length === 0) {
-    return { statut: null, justification: "Aucun fichier de balance générale trouvé dans ce cycle — impossible de vérifier automatiquement." };
-  }
-
+function lireBalances(fichiersExcel) {
   const balancesParsees = [];
   for (const fichier of fichiersExcel) {
     try {
@@ -90,6 +113,15 @@ function soldesOuvertureCloture(fichiersExcel) {
       if (comptes) balancesParsees.push({ nom: fichier.nom, comptes });
     } catch { /* fichier illisible, ignoré */ }
   }
+  return balancesParsees;
+}
+
+function soldesOuvertureCloture(fichiersExcel) {
+  if (fichiersExcel.length === 0) {
+    return { statut: null, justification: "Aucun fichier de balance générale trouvé dans ce cycle — impossible de vérifier automatiquement." };
+  }
+
+  const balancesParsees = lireBalances(fichiersExcel);
 
   if (balancesParsees.length === 0) {
     return { statut: null, justification: "La structure des fichiers de balance n'a pas été reconnue (colonnes ouverture/clôture débit/crédit introuvables) — à vérifier manuellement." };
@@ -118,4 +150,45 @@ function soldesOuvertureCloture(fichiersExcel) {
   return { statut: 'non', justification: `${ecarts.length}/${total} comptes présentent un écart entre solde d'ouverture et solde de clôture N-1 : ${detail}${ecarts.length > 5 ? ', …' : ''}.` };
 }
 
-module.exports = { soldesOuvertureCloture };
+// Comptes de virements internes (classe 58 SYSCOHADA : virements de fonds, autres virements
+// internes) : ce sont des comptes de passage, qui doivent être soldés à la clôture. Une balance
+// six colonnes N suffit (on lit sa colonne clôture) ; si on a N et N-1, on repère N par le même
+// test que soldesOuvertureCloture.
+function virementsInternesSoldes(fichiersExcel) {
+  if (fichiersExcel.length === 0) {
+    return { statut: null, justification: "Aucun fichier de balance générale trouvé — impossible de vérifier automatiquement." };
+  }
+  const balancesParsees = lireBalances(fichiersExcel);
+  if (balancesParsees.length === 0) {
+    return { statut: null, justification: "La structure des fichiers de balance n'a pas été reconnue (colonnes ouverture/clôture débit/crédit introuvables) — à vérifier manuellement." };
+  }
+  if (balancesParsees.length > 2) {
+    const liste = balancesParsees.map(b => `"${b.nom}"`).join(', ');
+    return { statut: null, justification: `${balancesParsees.length} fichiers de balance exploitables trouvés (${liste}) — impossible de déterminer automatiquement la balance N. Merci de ne garder que les balances N et N-1.` };
+  }
+
+  let balanceN = balancesParsees[0];
+  if (balancesParsees.length === 2) {
+    const [a, b] = balancesParsees;
+    const { total, balanceN: laquelle } = comparerSoldes(a.comptes, b.comptes);
+    if (total < 3) {
+      return { statut: null, justification: `Impossible de déterminer laquelle de "${a.nom}" et "${b.nom}" est la balance N (trop peu de comptes communs) — à vérifier manuellement.` };
+    }
+    balanceN = laquelle === 'A' ? a : b;
+  }
+
+  const comptes58 = Object.keys(balanceN.comptes).filter(c => c.startsWith('58'));
+  if (comptes58.length === 0) {
+    return { statut: 'oui', justification: `Aucun compte de virements internes (58) dans la balance "${balanceN.nom}" : rien à solder.` };
+  }
+  const nonSoldes = comptes58
+    .map(c => ({ compte: c, solde: Math.round(balanceN.comptes[c].soldeCloture * 100) / 100 }))
+    .filter(e => Math.abs(e.solde) > TOLERANCE);
+  if (nonSoldes.length === 0) {
+    return { statut: 'oui', justification: `Les ${comptes58.length} compte(s) de virements internes (58) de la balance "${balanceN.nom}" sont soldés à la clôture.` };
+  }
+  const detail = nonSoldes.slice(0, 5).map(e => `compte ${e.compte} (solde ${e.solde})`).join(', ');
+  return { statut: 'non', justification: `${nonSoldes.length} compte(s) de virements internes non soldé(s) à la clôture dans "${balanceN.nom}" : ${detail}${nonSoldes.length > 5 ? ', …' : ''}.` };
+}
+
+module.exports = { soldesOuvertureCloture, virementsInternesSoldes, lireBalances };

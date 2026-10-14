@@ -5,9 +5,10 @@
 #
 #   sudo /opt/fidea-visa/bin/gerer.sh fidea creer-admin --email prenom.nom@fidea.ci --nom "Prénom Nom"
 #   sudo /opt/fidea-visa/bin/gerer.sh fidea mot-de-passe --email prenom.nom@fidea.ci
+#   sudo /opt/fidea-visa/bin/gerer.sh fidea migrer-gudef
 set -euo pipefail
 
-CODE="${1:?Usage : $0 <cabinet> creer-admin|mot-de-passe --email ... [--nom ...]}"
+CODE="${1:?Usage : $0 <cabinet> creer-admin|mot-de-passe --email ... [--nom ...] | migrer-gudef}"
 shift
 [[ $EUID -eq 0 ]] || { echo "À lancer avec sudo." >&2; exit 1; }
 ENV=/etc/fidea-visa/$CODE.env

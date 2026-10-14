@@ -72,12 +72,13 @@ const CYCLES_DILIGENCES = [
     label: 'Stocks',
     roleDefaut: 'assistant',
     points: [
-      { id: 'st_1', texte: 'Obtenir le PV d\'inventaire signé. Vérifier la date (proche du 31/12/N), la présence d\'un comité, les procédures d\'inventaire.', automatisation: { type: 'ia' } },
-      { id: 'st_2', texte: 'Obtenir l\'état détaillé des stocks valorisés. Vérifier la cohérence avec l\'inventaire physique et le rapprochement avec la balance générale et le bilan.', automatisation: { type: 'ia' } },
-      { id: 'st_3', texte: 'Vérifier la méthode d\'évaluation utilisée (CUMP ou FIFO/PEPS). Recalculer un échantillon et vérifier la conformité avec le SYSCOHADA.' },
-      { id: 'st_4', texte: 'Vérifier la permanence des méthodes d\'évaluation (méthode N vs N-1). En cas de changement, vérifier la justification et la mention en annexe.' },
-      { id: 'st_5', texte: 'Le cas échéant, vérifier que les dépréciations de stocks sont justifiées (stocks obsolètes, rotation lente). Contrôler l\'écriture comptable.' },
-      { id: 'st_6', texte: 'Test de cohérence globale : calculer le coût d\'achat des ventes (SI + Achats - SF) et le coefficient multiplicateur. Comparer avec N-1 et N-2.' },
+      { id: 'st_1', texte: 'L\'entreprise a-t-elle réalisé un inventaire physique des stocks ? (PV d\'inventaire signé, date proche du 31/12/N, présence d\'un comité, procédures d\'inventaire)', automatisation: { type: 'ia' } },
+      { id: 'st_2', texte: 'Existe-t-il un état valorisé des stocks inventoriés à la clôture ? Est-il cohérent avec l\'inventaire physique ?', automatisation: { type: 'ia' } },
+      { id: 'st_3', texte: 'Si oui, la valeur du stock inventorié correspond-elle à celle des états financiers ? (rapprochement avec la balance générale et le bilan)', automatisation: { type: 'ia' } },
+      { id: 'st_4', texte: 'Quel est le mode d\'évaluation utilisé par l\'entreprise (CUMP ou PEPS/FIFO) ? Recalculer un échantillon et vérifier la conformité avec le SYSCOHADA.' },
+      { id: 'st_5', texte: 'La permanence des méthodes d\'évaluation est-elle respectée (méthode N vs N-1) ? En cas de changement, vérifier la justification et la mention en annexe.' },
+      { id: 'st_6', texte: 'Le cas échéant, les dépréciations sont-elles justifiées (stocks obsolètes, rotation lente) ? Contrôler l\'écriture comptable.' },
+      { id: 'st_7', texte: 'Pour une activité achat/revente, le coût d\'achat des ventes (SI + Achats - SF) multiplié par le coefficient multiplicateur de l\'entité (moyenne des 2 exercices précédents) correspond-il globalement au chiffre d\'affaires TTC ?' },
     ]
   },
   {
@@ -144,12 +145,14 @@ const CYCLES_DILIGENCES = [
     label: 'Trésorerie',
     roleDefaut: 'assistant',
     points: [
-      { id: 'tr_1', texte: 'Obtenir les relevés bancaires de décembre N et effectuer le rapprochement bancaire. Vérifier la concordance entre soldes bancaires et soldes comptables (classe 52).', automatisation: { type: 'ia' } },
-      { id: 'tr_2', texte: 'Vérifier l\'exhaustivité des comptes bancaires déclarés (cohérence avec la fiche d\'identification page 5 — domiciliations bancaires).', automatisation: { type: 'ia' } },
-      { id: 'tr_3', texte: 'Contrôler les chèques en circulation et les virements en attente à la date de clôture. Vérifier leur correcte comptabilisation.', automatisation: { type: 'ia' } },
-      { id: 'tr_4', texte: 'Vérifier l\'inventaire de caisse au 31/12/N (PV de caisse signé). Rapprocher avec le solde comptable du compte 571.', automatisation: { type: 'ia' } },
-      { id: 'tr_5', texte: 'Analyser la variation de trésorerie (N vs N-1). Identifier les flux significatifs et vérifier leur cohérence avec l\'activité de l\'entité.', automatisation: { type: 'ia' } },
-      { id: 'tr_6', texte: 'Vérifier l\'absence de soldes créditeurs de caisse (solde négatif impossible en pratique). Identifier et expliquer tout solde anormal.', automatisation: { type: 'ia' } },
+      { id: 'tr_1', texte: 'S\'assurer de l\'existence d\'un inventaire de caisse (PV de caisse signé au 31/12/N) et le rapprocher du solde comptable du compte 571.', automatisation: { type: 'ia' } },
+      { id: 'tr_2', texte: 'Vérifier que les comptes de virements internes (classe 58) ont été soldés.', automatisation: { type: 'numeric', check: 'virementsInternesSoldes' } },
+      { id: 'tr_3', texte: 'Vérifier que les comptes bancaires listés appartiennent à l\'entreprise et correspondent à ceux listés à la page 5 (domiciliations bancaires).', automatisation: { type: 'ia' } },
+      { id: 'tr_4', texte: 'Vérifier que les soldes de caisse ne sont pas créditeurs (solde négatif impossible en pratique). Identifier et expliquer tout solde anormal.', automatisation: { type: 'ia' } },
+      { id: 'tr_5', texte: 'Vérifier l\'existence d\'un état de rapprochement de décembre pour chaque compte bancaire, et la concordance entre soldes bancaires et soldes comptables (classe 52).', automatisation: { type: 'ia' } },
+      { id: 'tr_6', texte: 'Obtenir les explications pertinentes sur les suspens anciens (> 3 mois) non traités (chèques en circulation, virements en attente).', automatisation: { type: 'ia' } },
+      { id: 'tr_7', texte: 'Vérifier le report adéquat de la trésorerie passive (concours bancaires courants, crédits de trésorerie, escompte — comptes 56 — reportés au passif du bilan).', automatisation: { type: 'ia' } },
+      { id: 'tr_8', texte: 'Vérifier que le tableau des engagements hors bilan (page 23, annexe 4/28) a été rempli pour les entreprises présentant des caractéristiques le justifiant.' },
     ]
   },
   {
@@ -160,7 +163,7 @@ const CYCLES_DILIGENCES = [
       { id: 'cc_1', texte: 'Effectuer une revue analytique des comptes de charges. Analyser les marges et identifier les causes des variations significatives d\'une année sur l\'autre.', automatisation: { type: 'ia' } },
       { id: 'cc_2', texte: 'Locations, redevances crédit-bail, assurances : vérifier que les charges comptabilisées correspondent à celles échues au cours de l\'exercice.' },
       { id: 'cc_3', texte: 'Impôts et taxes : vérifier l\'acquittement des impôts (foncier, patentes, taxe sur salaires, taxe d\'apprentissage, formation continue, vignettes, etc.). Rapprocher avec les déclarations.', automatisation: { type: 'ia' } },
-      { id: 'cc_4', texte: 'Rémunérations et jetons de présence : vérifier les décisions d\'attribution par AG ou CA. Vérifier la pratique du décalage de paie et les provisions (congés payés, retraite).' },
+      { id: 'cc_4', texte: 'Rémunérations et jetons de présence : vérifier les décisions d\'attribution par AG ou CA. Vérifier la pratique du décalage de paie et les provisions (congés payés, retraite).', automatisation: { type: 'ia' } },
       { id: 'cc_5', texte: 'Charges sociales : rapprocher les comptes de charges avec les déclarations sociales. Vérifier le retraitement du personnel extérieur (compte 637) et le tableau 11.', automatisation: { type: 'ia' } },
       { id: 'cc_6', texte: 'Intérêts et agios bancaires / comptes courants : identifier les causes des variations significatives. S\'assurer que les écritures de retraitement crédit-bail sont opérées.' },
     ]

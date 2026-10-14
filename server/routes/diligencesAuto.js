@@ -7,13 +7,13 @@ const { verifierAccesDossier } = require('../utils/dossierAccess');
 const { queryOne } = require('../db');
 const { resolveDir, listFiles } = require('./fichiers');
 const { construireBlocsDocuments } = require('../utils/documentExtraction');
-const { soldesOuvertureCloture } = require('../utils/diligencesChecks');
+const { soldesOuvertureCloture, virementsInternesSoldes, lireBalances } = require('../utils/diligencesChecks');
 const { CYCLES_DILIGENCES } = require('../../src/utils/diligencesData');
 
 const router = express.Router();
 const anthropic = new Anthropic();
 
-const VERIFICATEURS_NUMERIQUES = { soldesOuvertureCloture };
+const VERIFICATEURS_NUMERIQUES = { soldesOuvertureCloture, virementsInternesSoldes };
 
 // Modèle utilisé pour l'analyse des diligences, et ses tarifs (USD par million de tokens)
 // pour pouvoir chiffrer le coût réel de chaque analyse. À mettre à jour si le modèle change.
@@ -57,6 +57,13 @@ function fichiersDuCycle(dossierId, cycleLabel) {
   return fichiers;
 }
 
+const ID_CYCLE_BALANCES = 'organisation_comptable';
+const LABEL_CYCLE_BALANCES = CYCLES_DILIGENCES.find(c => c.id === ID_CYCLE_BALANCES).label;
+
+function fichiersExcelDuCycle(dossierId, cycleLabel) {
+  return fichiersDuCycle(dossierId, cycleLabel).filter(f => /\.(xlsx|xls)$/i.test(f.nom));
+}
+
 function safeJSON(str, fallback) {
   try { return JSON.parse(str || '{}'); } catch { return fallback; }
 }
@@ -71,12 +78,16 @@ function calculerPropositionsNumeriques(dossierId, cyclesReponses) {
     const pointsNumeriques = cycle.points.filter(p => p.automatisation?.type === 'numeric');
     if (pointsNumeriques.length === 0) continue;
 
-    const fichiers = fichiersDuCycle(dossierId, cycle.label);
-    const fichiersExcel = fichiers.filter(f => /\.(xlsx|xls)$/i.test(f.nom));
+    const fichiersExcel = fichiersExcelDuCycle(dossierId, cycle.label);
+    // Les balances sont en général déposées une seule fois, dans "Organisation comptable" :
+    // un cycle sans balance reconnue (ex. Trésorerie) utilise donc celles-là.
+    const fichiersExcelUtilises = cycle.id === ID_CYCLE_BALANCES || lireBalances(fichiersExcel).length > 0
+      ? fichiersExcel
+      : fichiersExcelDuCycle(dossierId, LABEL_CYCLE_BALANCES);
     for (const p of pointsNumeriques) {
       const verificateur = VERIFICATEURS_NUMERIQUES[p.automatisation.check];
       const resultat = verificateur
-        ? verificateur(fichiersExcel)
+        ? verificateur(fichiersExcelUtilises)
         : { statut: null, justification: 'Vérificateur non implémenté.' };
       propositions.push({ pointId: p.id, cycleId: cycle.id, statut: resultat.statut, justification: resultat.justification, source: 'numeric' });
     }
