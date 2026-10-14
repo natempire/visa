@@ -129,7 +129,11 @@ function listFiles(dir) {
     .map(filename => {
       const filePath = path.join(dir, filename);
       const stats = fs.statSync(filePath);
-      const { nom, dateUpload } = analyserNomFichier(filename, stats.birthtime.toISOString());
+      // La date de création ne survit pas à une copie (sauvegarde restaurée, déménagement vers
+      // le serveur Linux) : elle devient la date de la copie. La date de modification, elle, est
+      // conservée par tar et restic ; on prend la plus ancienne des deux.
+      const dateFichier = stats.birthtimeMs && stats.birthtimeMs < stats.mtimeMs ? stats.birthtime : stats.mtime;
+      const { nom, dateUpload } = analyserNomFichier(filename, dateFichier.toISOString());
       return {
         id: filename,
         nom,
