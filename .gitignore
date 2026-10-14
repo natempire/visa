@@ -23,3 +23,6 @@ ngrok.exe
 # OS
 Thumbs.db
 Desktop.ini
+
+# Archives pour le serveur (deploy/linux/preparer-archive.sh)
+/dist/

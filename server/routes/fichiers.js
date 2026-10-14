@@ -5,6 +5,7 @@ const fs = require('fs');
 const { authentifier } = require('./auth');
 const { queryOne } = require('../db');
 const { verifierAccesDossier } = require('../utils/dossierAccess');
+const { MISSIONS_DIR } = require('../config');
 const { requireRole } = require('../utils/requireRole');
 
 const router = express.Router();
@@ -30,7 +31,7 @@ function safeResolve(baseDir, target) {
 function resolveDir(dossierId, contexte) {
   const dossier = queryOne('SELECT nom_entite, exercice FROM dossiers WHERE id = ?', [dossierId]);
   if (!dossier) throw new Error('Dossier non trouvé');
-  const base = path.join(__dirname, '..', 'data', 'missions', nomDossierServeur(dossier));
+  const base = path.join(MISSIONS_DIR, nomDossierServeur(dossier));
   const dir = safeResolve(base, contexte);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
@@ -40,7 +41,7 @@ function creerStructureDossier(dossierId) {
   try {
     const dossier = queryOne('SELECT nom_entite, exercice FROM dossiers WHERE id = ?', [dossierId]);
     if (!dossier) return;
-    const base = path.join(__dirname, '..', 'data', 'missions', nomDossierServeur(dossier));
+    const base = path.join(MISSIONS_DIR, nomDossierServeur(dossier));
     const dossiers = [
       'documents_generes',
       'prise_de_connaissance',
@@ -128,7 +129,11 @@ function listFiles(dir) {
     .map(filename => {
       const filePath = path.join(dir, filename);
       const stats = fs.statSync(filePath);
-      const { nom, dateUpload } = analyserNomFichier(filename, stats.birthtime.toISOString());
+      // La date de création ne survit pas à une copie (sauvegarde restaurée, déménagement vers
+      // le serveur Linux) : elle devient la date de la copie. La date de modification, elle, est
+      // conservée par tar et restic ; on prend la plus ancienne des deux.
+      const dateFichier = stats.birthtimeMs && stats.birthtimeMs < stats.mtimeMs ? stats.birthtime : stats.mtime;
+      const { nom, dateUpload } = analyserNomFichier(filename, dateFichier.toISOString());
       return {
         id: filename,
         nom,

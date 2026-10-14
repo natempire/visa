@@ -1,9 +1,9 @@
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
-const bcrypt = require('bcryptjs');
+const { DATA_DIR } = require('./config');
 
-const DB_PATH = path.join(__dirname, 'data', 'fidea.db');
+const DB_PATH = path.join(DATA_DIR, 'fidea.db');
 
 let db = null;
 
@@ -123,24 +123,11 @@ async function initSchema() {
     );
   `);
 
-  // Seed default users
-  const motDePasseExpert = bcrypt.hashSync('expert123', 10);
-  const motDePasseSenior = bcrypt.hashSync('senior123', 10);
-  const motDePasseAssistant = bcrypt.hashSync('assistant123', 10);
-
-  db.run(`
-    INSERT OR IGNORE INTO utilisateurs (nom, email, mot_de_passe, role, initiales) VALUES
-    (?, ?, ?, ?, ?),
-    (?, ?, ?, ?, ?),
-    (?, ?, ?, ?, ?);
-  `, [
-    'Bamba Souleymane', 'bamba@fidea.ci', motDePasseExpert, 'expert', 'BS',
-    'Koné Adjoua', 'kone@fidea.ci', motDePasseSenior, 'senior', 'KA',
-    'Diallo Mamadou', 'diallo@fidea.ci', motDePasseAssistant, 'assistant', 'DM',
-  ]);
-
+  // Aucun compte n'est créé ici : le premier administrateur du cabinet est créé en ligne de
+  // commande (node gerer.js creer-admin), avec un mot de passe tapé au clavier. Avant, une base
+  // neuve recevait trois comptes de démonstration aux mots de passe connus (expert123...).
   saveDb();
-  console.log('Base de données initialisée avec les utilisateurs par défaut.');
+  console.log('Base de données initialisée (aucun compte : node gerer.js creer-admin).');
 }
 
 // Query helpers

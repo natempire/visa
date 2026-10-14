@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { cabinet, urlLogo } from '../utils/cabinet';
 
 export default function LoginPage() {
   const { connexion } = useApp();
@@ -13,7 +14,7 @@ export default function LoginPage() {
     setErreur('');
     setChargement(true);
     await new Promise(r => setTimeout(r, 400));
-    const result = connexion(email, motDePasse);
+    const result = await connexion(email, motDePasse);
     if (!result.succes) setErreur(result.erreur);
     setChargement(false);
   };
@@ -22,8 +23,10 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-left">
         <div className="login-brand">
-          <h1>FIDEA</h1>
-          <div className="tagline">FIDUCIAIRE D'EXPERTISE ET D'AUDIT</div>
+          {cabinet.logo
+            ? <img src={urlLogo()} alt={cabinet.nom} className="login-logo" />
+            : <h1>{cabinet.nom}</h1>}
+          {cabinet.sousTitre && <div className="tagline">{cabinet.sousTitre}</div>}
           <p>Plateforme de gestion des missions de visa de l'expert-comptable sur les états financiers annuels de synthèse.</p>
         </div>
       </div>
@@ -40,7 +43,7 @@ export default function LoginPage() {
             <input
               type="email"
               className="form-control"
-              placeholder="vous@fidea.ci"
+              placeholder={`vous@${cabinet.domaineEmail || 'cabinet.ci'}`}
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
@@ -67,13 +70,6 @@ export default function LoginPage() {
           >
             {chargement ? 'Connexion...' : 'Se connecter'}
           </button>
-
-          <div style={{ marginTop: 28, padding: 16, background: '#f7f8fc', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
-            <strong style={{ display: 'block', marginBottom: 8, color: '#1a3a5c' }}>Comptes de démonstration</strong>
-            <div>bamba@fidea.ci ·  (Expert)</div>
-            <div>kone@fidea.ci · senior123 (Senior)</div>
-            <div>diallo@fidea.ci · assistant123 (Assistant)</div>
-          </div>
         </form>
       </div>
     </div>

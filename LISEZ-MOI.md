@@ -34,20 +34,44 @@ FIDEA-VISA/
 └── LANCER-WINDOWS.bat
 ```
 
-## Comptes par défaut
+## Un cabinet = une instance
 
-| Email | Mot de passe | Rôle |
-|---|---|---|
-| bamba@fidea.ci | expert123 | Expert-Comptable |
-| kone@fidea.ci | senior123 | Collaborateur Senior |
-| diallo@fidea.ci | assistant123 | Assistant / Stagiaire |
+Chaque cabinet a sa propre instance : sa base, ses fichiers de missions, son logo et ses modèles
+Word sont dans son dossier de données, si bien qu'un cabinet ne voit jamais les données d'un
+autre. Le code est commun. Réglages (fichier `.env` à la racine, ou fichier d'environnement du
+service) :
 
-⚠️ Changez les mots de passe après le premier lancement.
+| Variable | Rôle |
+|---|---|
+| `JWT_SECRET` | secret des sessions — **différent pour chaque instance** |
+| `PORT` | port du serveur (une valeur par instance) |
+| `VISA_DATA_DIR` | dossier de données (défaut : `server/data`) |
+| `VISA_CABINET_NOM` | nom affiché (connexion, menu, exports) |
+| `VISA_CABINET_SOUS_TITRE` | ligne sous le nom, page de connexion |
+| `VISA_CABINET_NUMERO_ORDRE` | n° d'inscription à l'Ordre (lettre de mission) |
+| `VISA_EXPERT_PAR_DEFAUT` | expert-comptable proposé pour un nouveau dossier |
+| `VISA_CABINET_DOMAINE_EMAIL` | domaine suggéré dans les champs email |
+| `ANTHROPIC_API_KEY` | clé de l'IA (diligences automatiques) |
+
+Facultatif, dans le dossier de données : `logo.png` (ou `.svg`/`.jpg`) remplace le nom écrit, et
+`modeles/<nom>.docx` remplace le modèle Word par défaut du même nom (`public/templates/`).
+
+## Premier compte
+
+Une base neuve n'a **aucun compte**. Service arrêté, dans `server/` :
+
+```bash
+node gerer.js creer-admin --email prenom.nom@cabinet.ci --nom "Prénom Nom"
+node gerer.js mot-de-passe --email prenom.nom@cabinet.ci     # mot de passe oublié
+```
+
+Le mot de passe est tapé au clavier (10 caractères minimum). Les autres comptes se créent
+ensuite dans l'application (page Utilisateurs).
 
 ## Base de données
 
-Les données sont stockées dans `server/data/fidea.db`.
-**Sauvegardez ce fichier régulièrement.**
+Les données sont dans `<dossier de données>/fidea.db` et `<dossier de données>/missions/`.
+**Sauvegardez ce dossier régulièrement.**
 
 ## Déploiement sur serveur Windows
 
