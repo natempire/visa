@@ -167,18 +167,40 @@ function regrouperEnLots(sectionsPreparees) {
   return lots;
 }
 
+// Le tableau JSON entier si possible ; sinon (réponse coupée par max_tokens, texte parasite),
+// chaque objet {"id", "statut", "justification"} complet qu'on trouve, pour ne pas perdre
+// tout un lot à cause de sa fin.
+function lireResultats(texte) {
+  const tableau = texte.match(/\[[\s\S]*\]/);
+  if (tableau) {
+    try {
+      const r = JSON.parse(tableau[0]);
+      if (Array.isArray(r)) return r.filter(x => x && typeof x.id === 'string');
+    } catch { /* on tente la récupération objet par objet */ }
+  }
+  const resultats = [];
+  for (const m of texte.matchAll(/\{[^{}]*\}/g)) {
+    try {
+      const r = JSON.parse(m[0]);
+      if (r && typeof r.id === 'string' && 'statut' in r) resultats.push(r);
+    } catch { /* objet incomplet ou mal formé */ }
+  }
+  return resultats;
+}
+
 async function analyserUnLot(lot) {
   const contenu = lot.flatMap(s => s.contenu);
   const nbPoints = lot.reduce((somme, s) => somme + s.points.length, 0);
-  // Une justification courte tient sur ~150-200 tokens ; on prévoit large pour ne pas tronquer
-  // le JSON en plein milieu quand un lot regroupe beaucoup de points (plusieurs cycles).
-  const maxTokens = Math.min(16000, 2000 + nbPoints * 400);
-  const message = await anthropic.messages.create({
+  // Une justification courte tient sur ~150-200 tokens, mais le modèle en écrit parfois bien
+  // plus (un lot de 19 points a épuisé 9 600 tokens en oct. 2026) : on prévoit très large.
+  // En flux (stream) : le SDK refuse un appel simple aussi long, par crainte d'un délai dépassé.
+  const maxTokens = Math.min(32000, 4000 + nbPoints * 1000);
+  const message = await anthropic.messages.stream({
     model: MODELE_IA,
     max_tokens: maxTokens,
     system: SYSTEM_PROMPT_DILIGENCES,
     messages: [{ role: 'user', content: contenu }],
-  });
+  }).finalMessage();
 
   const usage = {
     inputTokens: message.usage.input_tokens || 0,
@@ -188,20 +210,27 @@ async function analyserUnLot(lot) {
   };
 
   const texte = message.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-  const jsonMatch = texte.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    const err = new Error("Réponse de l'IA illisible (JSON non trouvé)");
+  const tronquee = message.stop_reason === 'max_tokens';
+  const resultats = lireResultats(texte);
+  if (resultats.length === 0) {
+    console.error(`[IA] Réponse illisible (stop_reason ${message.stop_reason}) : ${texte.slice(0, 300)}`);
+    const err = new Error(tronquee
+      ? "Réponse de l'IA interrompue (trop longue) avant la première réponse exploitable"
+      : "Réponse de l'IA illisible (JSON non trouvé)");
     err.usage = usage; // l'appel a été facturé même si la réponse est inexploitable
     throw err;
   }
-  const resultats = JSON.parse(jsonMatch[0]);
+  if (tronquee) console.warn(`[IA] Réponse tronquée à ${maxTokens} tokens : ${resultats.length}/${nbPoints} points récupérés.`);
 
+  const absent = tronquee
+    ? "Réponse de l'IA interrompue (trop longue) avant ce point — relancer l'analyse."
+    : "L'IA n'a pas retourné de réponse pour ce point.";
   const propositions = lot.flatMap(({ cycle, points }) =>
     points.map(p => {
       const r = resultats.find(x => x.id === p.id);
       return r
         ? { pointId: p.id, cycleId: cycle.id, statut: r.statut, justification: r.justification, source: 'ia' }
-        : { pointId: p.id, cycleId: cycle.id, statut: null, justification: "L'IA n'a pas retourné de réponse pour ce point.", source: null };
+        : { pointId: p.id, cycleId: cycle.id, statut: null, justification: absent, source: null };
     })
   );
   return { propositions, usage };
