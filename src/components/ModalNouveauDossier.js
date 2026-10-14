@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { EXPERT_PAR_DEFAUT } from '../utils/constants';
+import { cabinet } from '../utils/cabinet';
 
 export default function ModalNouveauDossier({ onClose, onCreer }) {
   const { utilisateurs } = useApp();
@@ -18,7 +18,7 @@ export default function ModalNouveauDossier({ onClose, onCreer }) {
     capitauxPropres: '',
     resultatNet: '',
     totalProduits: '',
-    nomExpert: EXPERT_PAR_DEFAUT,
+    nomExpert: cabinet.expertParDefaut,
     nomAssistant: '',
     planning: '',
     listeDocuments: '',

@@ -1,6 +1,7 @@
 import React from 'react';
 import { LayoutDashboard, FolderOpen, Users, LogOut, Cloud, X } from 'lucide-react';
 import { useApp, ROLES_NIVEAU } from '../context/AppContext';
+import { cabinet, urlLogo } from '../utils/cabinet';
 
 export default function Sidebar({ page, setPage, ouvert, onFermer }) {
   const { utilisateurConnecte, deconnexion, ROLES, sauvegarde } = useApp();
@@ -15,7 +16,9 @@ export default function Sidebar({ page, setPage, ouvert, onFermer }) {
     <div className={`sidebar ${ouvert ? 'open' : ''}`}>
       <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1>FIDEA</h1>
+          {cabinet.logo
+            ? <img src={urlLogo()} alt={cabinet.nom} className="sidebar-logo-img" />
+            : <h1>{cabinet.nom}</h1>}
           <span>Missions VISA</span>
         </div>
         <button className="sidebar-close" onClick={onFermer} aria-label="Fermer le menu">

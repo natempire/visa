@@ -1,7 +1,7 @@
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
-import { EXPERT_PAR_DEFAUT } from './constants';
+import { cabinet, urlModele } from './cabinet';
 
 // Format number as French currency string
 const formatMontant = (val) => {
@@ -11,9 +11,9 @@ const formatMontant = (val) => {
   return num.toLocaleString('fr-FR');
 };
 
-// Fetch template from public/templates/
+// Modèle du cabinet s'il en a déposé un, sinon celui par défaut (voir server/index.js)
 async function fetchTemplate(nom) {
-  const response = await fetch(`${process.env.PUBLIC_URL}/templates/${nom}`);
+  const response = await fetch(urlModele(nom));
   if (!response.ok) throw new Error(`Impossible de charger le template : ${nom}`);
   const arrayBuffer = await response.arrayBuffer();
   return new Uint8Array(arrayBuffer);
@@ -51,7 +51,7 @@ export async function genererLettreMission(dossier) {
     NOM_ENTITE: dossier.nomEntite || '',
     NCC_ENTITE: dossier.nccEntite || '',
     ADRESSE_ENTITE: dossier.adresseEntite || '',
-    NOM_EXPERT: dossier.nomExpert || EXPERT_PAR_DEFAUT,
+    NOM_EXPERT: dossier.nomExpert || cabinet.expertParDefaut,
     NOM_ASSISTANT: dossier.nomAssistant || '',
     PLANNING: dossier.planning || '',
     LISTE_DOCUMENTS: dossier.listeDocuments || '',

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, X, Check, Eye, EyeOff, Key } from 'lucide-react';
 import { useApp, ROLES_NIVEAU } from '../context/AppContext';
+import { cabinet } from '../utils/cabinet';
 
 export default function UtilisateursPage() {
   const { utilisateurs, utilisateurConnecte, creerUtilisateur, modifierUtilisateur, supprimerUtilisateur, ROLES } = useApp();
@@ -109,7 +110,7 @@ export default function UtilisateursPage() {
 
         {/* Liste utilisateurs */}
         <div className="card">
-          <div className="card-header"><h3>Équipe FIDEA</h3></div>
+          <div className="card-header"><h3>Équipe {cabinet.nom}</h3></div>
           <div className="table-scroll">
           <table className="table">
             <thead>
@@ -182,7 +183,7 @@ export default function UtilisateursPage() {
               </div>
               <div className="form-group">
                 <label className="form-label">Email *</label>
-                <input className="form-control" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@fidea.ci" />
+                <input className="form-control" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder={`email@${cabinet.domaineEmail || 'cabinet.ci'}`} />
               </div>
               <div className="form-group">
                 <label className="form-label">Rôle *</label>

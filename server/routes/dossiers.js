@@ -601,9 +601,10 @@ router.delete('/:id', authentifier, requireRole('admin'), (req, res) => {
 
     try {
       const { nomDossierServeur } = require('./fichiers');
+      const { MISSIONS_DIR } = require('../config');
       const fs = require('fs');
       const path = require('path');
-      const dir = path.join(__dirname, '..', 'data', 'missions', nomDossierServeur(dossier));
+      const dir = path.join(MISSIONS_DIR, nomDossierServeur(dossier));
       fs.rmSync(dir, { recursive: true, force: true });
     } catch (e) { console.error('Erreur suppression dossier fichiers:', e); }
 

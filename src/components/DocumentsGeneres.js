@@ -7,7 +7,7 @@ import { fr } from 'date-fns/locale';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { CYCLES_DILIGENCES, DOCUMENTS_REQUIS } from '../utils/diligencesData';
-import { EXPERT_PAR_DEFAUT } from '../utils/constants';
+import { cabinet, urlModele } from '../utils/cabinet';
 
 
 const DOCS_CONFIG = [
@@ -27,7 +27,7 @@ function formatMontant(val) {
 }
 
 async function genererEtSauvegarder(dossier, docConfig, utilisateurs) {
-  const templateUrl = `${process.env.PUBLIC_URL}/templates/${docConfig.template}`;
+  const templateUrl = urlModele(docConfig.template);
   const response = await fetch(templateUrl);
   if (!response.ok) throw new Error('Template non trouvé');
   const arrayBuffer = await response.arrayBuffer();
@@ -48,7 +48,7 @@ async function genererEtSauvegarder(dossier, docConfig, utilisateurs) {
     NCC_ENTITE: dossier.nccEntite || '',
     NCC: dossier.nccEntite || '',
     ADRESSE_ENTITE: dossier.adresseEntite || '',
-    NOM_EXPERT: dossier.nomExpert || EXPERT_PAR_DEFAUT,
+    NOM_EXPERT: dossier.nomExpert || cabinet.expertParDefaut,
     NOM_ASSISTANT: dossier.nomAssistant || '',
     PLANNING: planning,
     LISTE_DOCUMENTS: dossier.etapes?.lettre_de_mission?.listeDocuments || dossier.listeDocuments || '',
@@ -61,13 +61,13 @@ async function genererEtSauvegarder(dossier, docConfig, utilisateurs) {
     DATE_DEBUT: planning.includes(' au ') ? planning.split(' au ')[0].replace(/^Du /i, '').trim() : '',
     DATE_FIN: planning.includes(' au ') ? planning.split(' au ')[1]?.trim() : '',
     // Lettre de mission — date d'émission + calendrier détaillé (tableau "Exécution et
-    // déroulement de la mission") + numéro d'inscription à l'Ordre (fixe, cabinet FIDEA)
+    // déroulement de la mission") + numéro d'inscription à l'Ordre du cabinet
     DATE_LETTRE: format(new Date(), 'd MMMM yyyy', { locale: fr }),
     DATE_PHASE1: lettreMission.datePhase1 || '',
     DATE_PHASE2: lettreMission.datePhase2 || '',
     DATE_PHASE3: lettreMission.datePhase3 || '',
     DATE_PHASE4: lettreMission.datePhase4 || '',
-    NUM_INSCRIPTION: '26.0368.1.15',
+    NUM_INSCRIPTION: cabinet.numeroOrdre,
     // Attestation — date de la lettre de mission visée ("en date du ...", était un an
     // brut avant correction). Réutilise la date de la 1ère phase (prise de connaissance
     // / signature de la lettre de mission) déjà saisie à l'étape Lettre de mission.
