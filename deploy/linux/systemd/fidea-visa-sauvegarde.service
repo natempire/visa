@@ -1,0 +1,8 @@
+[Unit]
+Description=FIDEA VISA — sauvegarde de tous les cabinets
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/fidea-visa/bin/sauvegarder.sh

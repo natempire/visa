@@ -1,0 +1,11 @@
+[Unit]
+Description=FIDEA VISA — sauvegarde chaque nuit
+
+[Timer]
+# 03:15 : après la sauvegarde de FIDEA Saisie (02:30), qui utilise le même dépôt restic
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -10,6 +10,11 @@ const { CABINET, DATA_DIR, MODELES_DIR, cheminLogo } = require('./config');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Derrière un relais local (Caddy sur le serveur, ngrok au cabinet), l'adresse du visiteur est
+// dans X-Forwarded-For. Sans ce réglage, toutes les requêtes semblent venir de 127.0.0.1 et la
+// limite de tentatives de connexion (par IP) bloquerait tout le cabinet à la fois.
+app.set('trust proxy', 'loopback');
+
 // Middleware
 app.use(cors());
 // Bypass ngrok browser warning for all responses

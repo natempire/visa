@@ -1,0 +1,36 @@
+# Une instance de FIDEA VISA (une par cabinet).
+#   systemctl enable --now fidea-visa@fidea
+# lit /etc/fidea-visa/fidea.env (PORT, JWT_SECRET, VISA_DATA_DIR, VISA_CABINET_*...).
+# Chaque cabinet tourne sous son propre utilisateur système (visa-<code>) : un cabinet ne peut
+# ni lire ni écrire le dossier de données d'un autre, même en cas de faille dans l'application.
+[Unit]
+Description=FIDEA VISA — cabinet %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=visa-%i
+Group=visa-%i
+EnvironmentFile=/etc/fidea-visa/%i.env
+Environment=NODE_ENV=production
+WorkingDirectory=/opt/fidea-visa/current/server
+ExecStart=/usr/bin/node /opt/fidea-visa/current/server/index.js
+# sql.js garde toute la base en mémoire : une seule instance par cabinet, jamais deux.
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/fidea-visa/%i
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

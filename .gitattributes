@@ -1,0 +1,12 @@
+# Les scripts du serveur Linux doivent garder des fins de ligne LF (core.autocrlf=true ici).
+deploy/** text eol=lf
+
+# Hors de l'archive envoyée au serveur (git archive) : fichiers propres au poste du cabinet,
+# copies de travail et documents d'un client réel.
+"Diligences auto" export-ignore
+public/templates/*.bak export-ignore
+"public/templates/SELI SERVICES- lettre de mission VISA - FIDEA.docx" export-ignore
+*.ps1 export-ignore
+*.bat export-ignore
+LANCER-MAC.sh export-ignore
+check.js export-ignore
