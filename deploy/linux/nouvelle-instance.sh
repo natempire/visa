@@ -32,7 +32,7 @@ id "$COMPTE" >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /no
 DONNEES=/srv/fidea-visa/$CODE
 install -d -m 700 -o "$COMPTE" -g "$COMPTE" "$DONNEES"
 
-umask 027
+( umask 077; : > "$ENV" )
 cat > "$ENV" <<FIN
 PORT=$port
 JWT_SECRET=$(openssl rand -hex 32)
@@ -68,6 +68,7 @@ $DOMAINE {
 	}
 }
 FIN
+chmod 644 "/etc/caddy/sites/visa-$CODE.caddy"
 rm -f /etc/caddy/sites/_vide.caddy
 # Journal créé d'avance au nom de Caddy (voir nouvelle-instance.sh de FIDEA Saisie)
 touch "/var/log/caddy/visa-$CODE.log"
