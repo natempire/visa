@@ -27,6 +27,12 @@ echo "Construction de l'interface (plusieurs minutes)..."
 CI=true GENERATE_SOURCEMAP=false BUILD_PATH="$cible" npm run build --silent >"$tmp/build.log" 2>&1 \
     || { cat "$tmp/build.log" >&2; exit 1; }
 [[ -f "$tmp/app/build/index.html" ]] || { echo "Interface non construite." >&2; exit 1; }
+# React copie tout public/ dans build/, y compris les fichiers exclus de l'archive (export-ignore) :
+# on les retire aussi de l'interface construite.
+git ls-files -z public | git check-attr -z --stdin export-ignore |
+    while IFS= read -r -d '' f && IFS= read -r -d '' _ && IFS= read -r -d '' v; do
+        if [[ "$v" == set ]]; then rm -f "$tmp/app/build/${f#public/}"; fi
+    done
 
 nom="dist/fidea-visa-$version.tar.gz"
 tar -czf "$nom" -C "$tmp/app" .
