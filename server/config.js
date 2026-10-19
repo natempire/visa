@@ -10,6 +10,7 @@
 //   VISA_CABINET_NUMERO_ORDRE   n° d'inscription à l'Ordre (lettre de mission)
 //   VISA_EXPERT_PAR_DEFAUT      expert-comptable proposé pour un nouveau dossier
 //   VISA_CABINET_DOMAINE_EMAIL  domaine suggéré dans les champs email      ex. fidea.ci
+//   VISA_JETON_INTEGRATION      jeton (≥ 32 car.) qui ouvre /api/integration à FIDEA ; vide = fermé
 // Dans le dossier de données, facultatifs : logo.png (ou .svg/.jpg) et modeles/<nom>.docx,
 // qui remplacent les modèles par défaut de public/templates/.
 const path = require('path');

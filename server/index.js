@@ -33,6 +33,8 @@ app.use('/api/fichiers', require('./routes/fichiers').router);
 
 app.use('/api/ia', require('./routes/ia'));
 app.use('/api/diligences-auto', require('./routes/diligencesAuto'));
+// Lecture seule pour FIDEA (liste des entités/missions) — jeton de service, voir la route.
+app.use('/api/integration', require('./routes/integration'));
 
 // Health check
 app.get('/api/ping', (req, res) => res.json({ ok: true, version: '1.0.0' }));
