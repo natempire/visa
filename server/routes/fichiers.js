@@ -251,4 +251,4 @@ router.post('/:dossierId/:contexte(*)', authentifier, verifierAccesDossier, uplo
   }
 });
 
-module.exports = { router, creerStructureDossier, resolveDir, listFiles, nomDossierServeur };
+module.exports = { router, creerStructureDossier, resolveDir, listFiles, nomDossierServeur, analyserNomFichier };
