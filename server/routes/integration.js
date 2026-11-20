@@ -5,7 +5,8 @@
 // configuré, la route n'existe pas (404) — une instance d'un autre cabinet n'expose donc rien.
 //
 // La liste des dossiers ne renvoie que l'identité de l'entité et l'état de ses missions : ni
-// chiffres, ni réponses aux diligences. Deux routes donnent en plus accès aux pièces d'un dossier,
+// chiffres, ni réponses aux diligences (seulement combien d'étapes et de points sont faits, les
+// mêmes nombres que l'avancement affiché dans l'application). Deux routes donnent en plus accès aux pièces d'un dossier,
 // pour le pré-remplissage de la fiche KYC dans FIDEA : uniquement les PDF et les images (ce que
 // FIDEA sait lire), pas les feuilles de travail. Rien n'est jamais écrit, ni dans la base ni sur le
 // disque : ces routes ne créent pas le dossier d'une mission qui n'a pas encore de fichiers.
@@ -16,8 +17,35 @@ const path = require('path');
 const { query, queryOne } = require('../db');
 const { MISSIONS_DIR } = require('../config');
 const { analyserNomFichier, nomDossierServeur } = require('./fichiers');
+const { ETAPES_ROLE_MIN } = require('../utils/dossierWriteRules');
+const { CYCLES_DILIGENCES } = require('../../src/utils/diligencesData');
 
 const router = express.Router();
+
+const ETAPES_ORDRE = Object.keys(ETAPES_ROLE_MIN);
+
+function lireJSON(texte) {
+  try { return JSON.parse(texte || '{}') || {}; } catch { return {}; }
+}
+
+// Mêmes calculs que DossierDetail.js (étapes complétées ou validées sur 7) et
+// DiligencesModule.js (points ayant un statut, sur tous les cycles).
+function avancement(d) {
+  const etapes = lireJSON(d.etapes_json);
+  const reponses = lireJSON(d.cycles_reponses_json);
+  let faits = 0, total = 0;
+  for (const cycle of CYCLES_DILIGENCES) {
+    const points = reponses[cycle.id]?.points || {};
+    total += cycle.points.length;
+    faits += cycle.points.filter(p => points[p.id]?.statut).length;
+  }
+  return {
+    etapesFaites: ETAPES_ORDRE.filter(cle => ['complete', 'valide'].includes(etapes[cle]?.statut)).length,
+    etapesTotal: ETAPES_ORDRE.length,
+    diligencesFaites: faits,
+    diligencesTotal: total,
+  };
+}
 
 const condense = s => crypto.createHash('sha256').update(String(s)).digest();
 
@@ -35,7 +63,7 @@ function verifierJeton(req, res, next) {
 router.get('/dossiers', verifierJeton, (req, res) => {
   const lignes = query(`
     SELECT id, nom_entite, ncc_entite, adresse_entite, nom_gerant, exercice, statut,
-           etape_actuelle, date_creation
+           etape_actuelle, date_creation, etapes_json, cycles_reponses_json
     FROM dossiers ORDER BY date_creation`);
   res.json({
     dossiers: lignes.map(d => ({
@@ -48,6 +76,7 @@ router.get('/dossiers', verifierJeton, (req, res) => {
       statut: d.statut,
       etape: d.etape_actuelle,
       dateCreation: d.date_creation,
+      ...avancement(d),
     })),
   });
 });

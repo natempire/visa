@@ -54,6 +54,25 @@ test.after(async () => {
   fs.rmSync(DONNEES, { recursive: true, force: true });
 });
 
+test('la liste donne l\'avancement : étapes faites sur 7, points de diligence faits', async () => {
+  const { CYCLES_DILIGENCES } = require('../../src/utils/diligencesData');
+  const cycle = CYCLES_DILIGENCES[0];
+  run('UPDATE dossiers SET etapes_json=?, cycles_reponses_json=? WHERE id=?', [
+    JSON.stringify({ prise_de_connaissance: { statut: 'valide' }, lettre_de_mission: { statut: 'complete' },
+      demande_documents: { statut: 'en_cours' } }),
+    JSON.stringify({ [cycle.id]: { points: { [cycle.points[0].id]: { statut: 'oui' },
+      [cycle.points[1].id]: { propositionIA: { statut: 'oui' } } } } }),
+    'acme']);
+  const { dossiers } = await (await appel('/dossiers')).json();
+  const acme = dossiers.find(d => d.id === 'acme');
+  const total = CYCLES_DILIGENCES.reduce((n, c) => n + c.points.length, 0);
+  assert.deepStrictEqual(
+    [acme.etapesFaites, acme.etapesTotal, acme.diligencesFaites, acme.diligencesTotal], [2, 7, 1, total]);
+  const vide = dossiers.find(d => d.id === 'vide');
+  assert.deepStrictEqual([vide.etapesFaites, vide.diligencesFaites], [0, 0]);
+  assert.strictEqual(acme.etapes_json, undefined, 'les réponses elles-mêmes ne sortent pas');
+});
+
 test('sans le bon jeton, rien ne sort', async () => {
   for (const route of ['/dossiers', '/dossiers/acme/documents',
     '/dossiers/acme/documents/telecharger?chemin=prise_de_connaissance/Scan%20CNI.JPG']) {
